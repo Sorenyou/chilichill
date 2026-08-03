@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Message, ReactionType, Station, User } from '@chili/shared';
-import { listStations, listMessages, listMessagesForStations, listAllPublicMessages, createMessage, listAllMessages, listUsers, toggleMessageReaction } from '@chili/db';
+import { listStations, listMessages, listMessagesForStations, listAllPublicMessages, createMessage, listAllMessages, listMessageById, listUsers, toggleMessageReaction } from '@chili/db';
 
 export type Screen = 'map' | 'wall' | 'admin';
 export type WallMode = 'city' | 'all';
@@ -345,13 +345,14 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
     const run = async () => {
       try {
         if (deepLink.messageId) {
-          const all = await listAllMessages();
-          const message = all.find((item) => item.id === deepLink.messageId);
-          if (message?.stationId) {
-            const station = stations.find((item) => item.id === message.stationId);
+          try {
+            const info = await listMessageById(deepLink.messageId);
+            const station = info?.stationId
+              ? stations.find((item) => item.id === info.stationId)
+              : undefined;
             if (station) openWall(station);
             else await openAllWall();
-          } else {
+          } catch {
             await openAllWall();
           }
           setHighlightMessageId(deepLink.messageId);

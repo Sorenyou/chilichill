@@ -70,6 +70,18 @@ export async function listAllMessages() {
   return (await api<Awaited<ReturnType<typeof mock.listAllMessages>>>('/api/admin/messages')) ?? mock.listAllMessages();
 }
 
+/** 按 ID 查询单条已发布留言（公开接口，用于分享深链定位） */
+export async function listMessageById(id: string) {
+  const result = await api<{ id: string; stationId: string | null; parentId: string | null } | null>(
+    `/api/messages?id=${encodeURIComponent(id)}`,
+  );
+  if (result !== null) return result;
+  const fallback = (await mock.listAllMessages()).find((message) => message.id === id);
+  return fallback
+    ? { id: fallback.id, stationId: fallback.stationId, parentId: fallback.parentId ?? null }
+    : null;
+}
+
 export async function listUsers() {
   return mock.listUsers();
 }

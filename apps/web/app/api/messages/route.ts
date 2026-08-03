@@ -36,6 +36,22 @@ async function reactionSummaries(supabase: ReturnType<typeof adminClient>, messa
 export async function GET(request: Request) {
   if (!hasSupabaseEnv()) return Response.json({ fallback: true }, { status: 503 });
   const url = new URL(request.url);
+  const id = url.searchParams.get('id');
+  if (id) {
+    const supabase = adminClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('id, station_id, parent_id, status')
+      .eq('id', id)
+      .eq('status', 'published')
+      .maybeSingle();
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json(
+      data
+        ? { id: data.id, stationId: data.station_id, parentId: data.parent_id ?? null }
+        : null,
+    );
+  }
   const stationIds = url.searchParams.get('stationIds')?.split(',').filter(Boolean) ?? [];
   const stationId = url.searchParams.get('stationId');
   const all = url.searchParams.get('all') === '1';
