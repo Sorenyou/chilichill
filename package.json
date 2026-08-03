@@ -18,13 +18,5 @@
   "packageManager": "pnpm@11.1.0",
   "engines": {
     "node": ">=20"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "esbuild",
-      "turbo",
-      "sharp"
-    ]
   }
 }
