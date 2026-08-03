@@ -176,6 +176,8 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
   const deepLinkHandled = useRef(false);
   const messagesRef = useRef<Message[]>([]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+  const hasMoreRef = useRef(messagesHasMore);
+  useEffect(() => { hasMoreRef.current = messagesHasMore; });
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionPending = useRef<Set<string>>(new Set());
@@ -353,11 +355,13 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
           let guard = 0;
           while (guard < 20) {
             if ([...targetIds].every((id) => findMessageById(messagesRef.current, id))) return;
+            if (!hasMoreRef.current && messagesRef.current.length > 0) return;
             const before = messagesRef.current.length;
             await loadMoreRef.current?.();
             const start = Date.now();
-            while (Date.now() - start < 5000) {
+            while (Date.now() - start < 20000) {
               if (messagesRef.current.length !== before) break;
+              if (hasMoreRef.current === false && messagesRef.current.length > 0) break;
               await new Promise((resolve) => setTimeout(resolve, 80));
             }
             if (messagesRef.current.length === before) return; // 没有更多页
