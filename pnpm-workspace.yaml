@@ -6,3 +6,8 @@ onlyBuiltDependencies:
   - esbuild
   - turbo
   - sharp
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
+  turbo: true
+  sharp: true
