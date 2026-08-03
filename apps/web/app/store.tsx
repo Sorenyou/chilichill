@@ -57,6 +57,8 @@ interface AppContextValue {
   openReplyComposer: (message: Message) => void;
   openAdmin: () => Promise<void>;
   footprintStationIds: string[];
+  myStationIds: string[];
+  myDiaryCount: number;
 
   // modals
   loginOpen: boolean;
@@ -157,6 +159,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [allMsgs, setAllMsgs] = useState<Message[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [visitorId, setVisitorId] = useState('');
+  const [myStationIds, setMyStationIds] = useState<string[]>([]);
+  const [myDiaryCount, setMyDiaryCount] = useState(0);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionPending = useRef<Set<string>>(new Set());
@@ -288,6 +292,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     showToast('已退出登录');
   }, [user, showToast]);
 
+  const refreshMyStats = useCallback(async (username: string | null) => {
+    if (!username) {
+      setMyStationIds([]);
+      setMyDiaryCount(0);
+      return;
+    }
+    try {
+      const all = await listAllMessages();
+      const ids = new Set<string>();
+      let count = 0;
+      for (const message of all) {
+        if (message.status === 'published' && message.author === username) {
+          count++;
+          if (message.stationId) ids.add(message.stationId);
+        }
+      }
+      setMyStationIds([...ids]);
+      setMyDiaryCount(count);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshMyStats(user?.username ?? null);
+  }, [user, refreshMyStats]);
+
   const submitMessage = useCallback(async (input: SubmitMessageInput) => {
     if (!user) throw new Error('请先登录');
     const pickedStation = stations.find((station) => station.name === input.cityTag || station.cityName === input.cityTag);
@@ -313,12 +344,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return next;
       });
     }
+    await refreshMyStats(user.username);
     await refreshMessages();
     await refreshStations();
     setComposerOpen(false);
     setReplyTarget(null);
     showToast('已发布');
-  }, [user, curStation, replyTarget, stations, refreshMessages, refreshStations, showToast]);
+  }, [user, curStation, replyTarget, stations, refreshMessages, refreshStations, refreshMyStats, showToast]);
 
   const toggleReaction = useCallback(async (messageId: string, type: ReactionType) => {
     const pendingKey = messageId + ':' + type;
@@ -377,7 +409,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     curStation, curCityStations, curSwitchStations, openWall, openCityWall, backToMap, wallMode, openAllWall, clearReplyTarget,
     messages, refreshMessages, loadMoreMessages, messagesHasMore, messagesLoading, messagesLoadingMore, toggleReaction, sortNew, toggleSort,
     user, login, logout,
-    toast, showToast, submitMessage, replyTarget, openReplyComposer, openAdmin, footprintStationIds,
+    toast, showToast, submitMessage, replyTarget, openReplyComposer, openAdmin, footprintStationIds, myStationIds, myDiaryCount,
     shareMode, shareTargetMessage, openShareCard: (mode: 'page' | 'footprint' | 'message', message?: Message | null) => {
       setShareMode(mode);
       setShareTargetMessage(mode === 'message' ? (message ?? null) : null);

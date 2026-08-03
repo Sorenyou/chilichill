@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Message } from '@chili/shared';
 import { useApp } from '../store';
 import { renderShareCard, type ShareCardData } from '@/lib/shareCard';
 
@@ -17,25 +16,16 @@ function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
   link.remove();
 }
 
-/* ===== 统计用户在留言与回复中的日记总数 ===== */
-function countUserMessages(messages: Message[], username: string): number {
-  let count = 0;
-  for (const message of messages) {
-    if (message.author === username) count++;
-    if (message.replies?.length) count += countUserMessages(message.replies, username);
-  }
-  return count;
-}
-
 export function ShareModal() {
-  const { shareOpen, setShareOpen, shareMode, shareTargetMessage, stations, messages, wallMode, curStation, footprintStationIds, user, showToast } = useApp();
+  const { shareOpen, setShareOpen, shareMode, shareTargetMessage, stations, messages, wallMode, curStation, footprintStationIds, myStationIds, myDiaryCount, user, showToast } = useApp();
   const [mode, setMode] = useState<ShareMode>(shareMode);
   const [generating, setGenerating] = useState(false);
   const closingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const footprintStations = stations.filter((s) => footprintStationIds.includes(s.id));
-  const myMessagesCount = user ? countUserMessages(messages, user.username) : 0;
+  const footprintIds = [...new Set([...footprintStationIds, ...myStationIds])];
+  const footprintStations = stations.filter((s) => footprintIds.includes(s.id));
+  const myMessagesCount = user ? myDiaryCount : 0;
 
   useEffect(() => { setMode(shareMode); }, [shareMode]);
 
