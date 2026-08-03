@@ -265,6 +265,7 @@ export function TourMap() {
 
             {(() => {
               const spreadOffsets: Record<string, { x: number; y: number }> = {};
+              const groupIndex = new Map(visibleCityGroups.map((group, index) => [group[0].id, index]));
               for (const g of visibleCityGroups) {
                 const s = g[0];
                 spreadOffsets[s.id] = markerPosition(s, provinceCenters);
@@ -283,9 +284,12 @@ export function TourMap() {
                     const dx = cx - ox;
                     const dy = cy - oy;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist > 0 && dist < 2.8) {
+                    if (dist < 2.8) {
                       const push = (2.8 - dist) * 0.4;
-                      const angle = Math.atan2(dy, dx);
+                      // 完全重合（如同省城市共用省级中心点）时按组索引错开方向
+                      const angle = dist === 0
+                        ? (((groupIndex.get(s.id) ?? 0) % 2 === 0) ? 0 : Math.PI / 2)
+                        : Math.atan2(dy, dx);
                       cx += Math.cos(angle) * push;
                       cy += Math.sin(angle) * push;
                       moved = true;
