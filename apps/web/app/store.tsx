@@ -237,6 +237,9 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
     }
   }, [fetchMessagesPage, messagesHasMore, messagesLoadingMore, messagesNextOffset]);
 
+  const loadMoreRef = useRef<(() => Promise<void>) | null>(null);
+  useEffect(() => { loadMoreRef.current = loadMoreMessages; });
+
   // boot
   useEffect(() => {
     const t = setTimeout(() => setBooted(true), 2200);
@@ -351,7 +354,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
           while (guard < 20) {
             if ([...targetIds].every((id) => findMessageById(messagesRef.current, id))) return;
             const before = messagesRef.current.length;
-            await loadMoreMessages();
+            await loadMoreRef.current?.();
             const start = Date.now();
             while (Date.now() - start < 5000) {
               if (messagesRef.current.length !== before) break;
