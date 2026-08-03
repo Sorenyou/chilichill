@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Message, ReactionType, Station, User } from '@chili/shared';
-import { listStations, listMessages, listMessagesForStations, listAllPublicMessages, createMessage, listAllMessages, listMessageById, listUsers, toggleMessageReaction } from '@chili/db';
+import { listStations, listMessages, listMessagesForStations, listAllPublicMessages, createMessage, listAllMessages, listMessageById, listMessagesByAuthor, listUsers, toggleMessageReaction } from '@chili/db';
 
 export type Screen = 'map' | 'wall' | 'admin';
 export type WallMode = 'city' | 'all';
@@ -312,14 +312,12 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
       return;
     }
     try {
-      const all = await listAllMessages();
+      const all = await listMessagesByAuthor(username);
       const ids = new Set<string>();
       let count = 0;
       for (const message of all) {
-        if (message.status === 'published' && message.author === username) {
-          count++;
-          if (message.stationId) ids.add(message.stationId);
-        }
+        count++;
+        if (message.stationId) ids.add(message.stationId);
       }
       setMyStationIds([...ids]);
       setMyDiaryCount(count);
@@ -363,6 +361,17 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
         } else if (deepLink.username) {
           await openAllWall();
           setHighlightAuthor(deepLink.username);
+          try {
+            const authored = await listMessagesByAuthor(deepLink.username);
+            if (authored.length) {
+              const cities = [...new Set(authored.map((message) => message.cityTag).filter(Boolean))].slice(0, 5).join(' / ');
+              showToast(`找到了 ${deepLink.username} 的足迹${cities ? `：${cities}` : ''}`);
+            } else {
+              showToast(`还没有找到 ${deepLink.username} 的足迹`);
+            }
+          } catch {
+            /* ignore */
+          }
         } else if (deepLink.all) {
           await openAllWall();
         }
@@ -371,7 +380,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
       }
     };
     run();
-  }, [deepLink, stations, openWall, openAllWall]);
+  }, [deepLink, stations, openWall, openAllWall, showToast]);
 
   const submitMessage = useCallback(async (input: SubmitMessageInput) => {
     if (!user) throw new Error('请先登录');

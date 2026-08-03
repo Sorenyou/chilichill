@@ -52,10 +52,32 @@ export async function GET(request: Request) {
         : null,
     );
   }
+  const author = url.searchParams.get('author');
+  const visitorId = url.searchParams.get('visitorId');
+  if (author) {
+    const supabase = adminClient();
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*, message_images(url, thumb_url, sort_order)')
+      .eq('status', 'published')
+      .eq('author', author)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    const rows = data ?? [];
+    let reactions: Awaited<ReturnType<typeof reactionSummaries>> = new Map();
+    try {
+      reactions = await reactionSummaries(supabase, rows.map((row) => row.id), visitorId);
+    } catch (reactionError) {
+      if (!isMissingReactionTable(reactionError)) {
+        return Response.json({ error: reactionError instanceof Error ? reactionError.message : 'Failed to load reactions' }, { status: 500 });
+      }
+    }
+    return Response.json({ items: rows.map((row) => mapMessage(row, reactions.get(row.id))) });
+  }
   const stationIds = url.searchParams.get('stationIds')?.split(',').filter(Boolean) ?? [];
   const stationId = url.searchParams.get('stationId');
   const all = url.searchParams.get('all') === '1';
-  const visitorId = url.searchParams.get('visitorId');
   const { limit, offset, order } = pageParams(url);
   const supabase = adminClient();
 

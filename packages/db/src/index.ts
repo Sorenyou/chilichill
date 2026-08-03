@@ -82,6 +82,13 @@ export async function listMessageById(id: string) {
     : null;
 }
 
+/** 按昵称查询该用户全部已发布留言（公开接口，用于足迹统计与深链） */
+export async function listMessagesByAuthor(author: string) {
+  const result = await api<{ items: Message[] }>(`/api/messages?author=${encodeURIComponent(author)}`);
+  if (result) return result.items;
+  return (await mock.listAllMessages()).filter((message) => message.status === 'published' && message.author === author);
+}
+
 export async function listUsers() {
   return mock.listUsers();
 }
