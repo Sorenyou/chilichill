@@ -8,6 +8,7 @@ import {
   splitTextRuns,
   wrapBodyText,
 } from '../lib/shareCard';
+import { cityGroupKey } from '../lib/cityGroups';
 
 interface Call {
   type: string;
@@ -198,5 +199,33 @@ describe('renderShareCard 冒烟', () => {
         }
       }
     }
+  });
+});
+
+describe('城市分组', () => {
+  const station = {
+    id: '1',
+    code: 'GZ',
+    name: '广州',
+    cityName: '广州',
+    provinceName: '广东省',
+    provinceAdcode: 440000,
+    venue: '宝能体育中心',
+    date: '2026-06-21',
+    x: 57.9,
+    y: 79.7,
+    status: 'done' as const,
+    palette: 'hot' as const,
+  };
+
+  it('同省不同城市（广州/深圳）分组 key 不同', () => {
+    const shenzhen = { ...station, id: '2', code: 'SZ', name: '深圳', cityName: '深圳', venue: '方街', palette: 'warn' as const };
+    expect(cityGroupKey(station)).not.toBe(cityGroupKey(shenzhen));
+  });
+
+  it('同城多场（上海两场馆）分组 key 相同', () => {
+    const second = { ...station, id: '3', code: 'SH2', name: '上海剧院专场', cityName: '上海', provinceAdcode: 310000, provinceName: '上海市' };
+    const shanghai = { ...station, id: '4', code: 'SH', name: '上海', cityName: '上海', provinceAdcode: 310000, provinceName: '上海市' };
+    expect(cityGroupKey(shanghai)).toBe(cityGroupKey(second));
   });
 });

@@ -8,6 +8,7 @@ export const SEED_STATIONS: Station[] = [
   { id: 's1', code: 'SH', name: '上海', cityName: '上海', provinceName: '上海市', provinceAdcode: 310000, venue: '梅赛德斯-奔驰文化中心', date: '2026-05-17', x: 78.6, y: 53.8, status: 'done', palette: 'hot' },
   { id: 's2', code: 'BJ', name: '北京', cityName: '北京', provinceName: '北京市', provinceAdcode: 110000, venue: '国家体育场', date: '2026-06-07', x: 62.7, y: 30.8, status: 'done', palette: 'cool' },
   { id: 's3', code: 'GZ', name: '广州', cityName: '广州', provinceName: '广东省', provinceAdcode: 440000, venue: '宝能体育中心', date: '2026-06-21', x: 57.9, y: 79.7, status: 'live', palette: 'gold' },
+  { id: 's6', code: 'SZ', name: '深圳', cityName: '深圳', provinceName: '广东省', provinceAdcode: 440000, venue: '方街', date: '2026-08-02', x: 57.9, y: 79.7, status: 'upcoming', palette: 'warn' },
   { id: 's4', code: 'CD', name: '成都', cityName: '成都', provinceName: '四川省', provinceAdcode: 510000, venue: '凤凰山体育馆', date: '2026-07-05', x: 38.9, y: 59.4, status: 'upcoming', palette: 'violet' },
   { id: 's5', code: 'WH', name: '武汉', cityName: '武汉', provinceName: '湖北省', provinceAdcode: 420000, venue: '五环体育中心', date: '2026-07-19', x: 60.4, y: 61.6, status: 'upcoming', palette: 'green' },
 ];

@@ -195,14 +195,10 @@ export function TourMap() {
   }, [features, stations]);
 
   const desktopCityGroups = useMemo(() => {
-    const groups = new Map<string, Station[]>();
-    for (const group of cityGroups) {
-      const center = markerPosition(group[0], provinceCenters);
-      const key = `${center.x.toFixed(2)},${center.y.toFixed(2)}`;
-      groups.set(key, [...(groups.get(key) ?? []), ...group]);
-    }
-    return [...groups.values()].map((group) => [...group].sort((a, b) => b.date.localeCompare(a.date)));
-  }, [cityGroups, provinceCenters]);
+    // 每个城市独立成点（同城多场仍合并），不再按地图坐标二次合并，
+    // 避免同省不同城市（如广州/深圳）被叠成一个带切换的城市点。
+    return cityGroups.map((group) => [...group].sort((a, b) => b.date.localeCompare(a.date)));
+  }, [cityGroups]);
 
   const visibleCityGroups = desktopMap ? desktopCityGroups : cityGroups;
 

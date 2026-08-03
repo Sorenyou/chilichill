@@ -2,10 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { STATUS_LABEL, type Station } from '@chili/shared';
+import { cityGroupKey } from '@/lib/cityGroups';
 
-export function cityGroupKey(station: Station) {
-  return `${station.provinceAdcode ?? station.provinceName}:${station.cityName}`;
-}
+export { cityGroupKey } from '@/lib/cityGroups';
 
 export function useCityGroups(stations: Station[]) {
   return useMemo(() => {
