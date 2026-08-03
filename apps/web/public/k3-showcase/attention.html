@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Kimi K3 Hybrid Attention | KDA 与 MLA 工作原理</title>
+  <style>
+    :root {
+      --bg: #0a0f0d;
+      --forest-1: #0d2818;
+      --forest-2: #1a3d25;
+      --purple: #8b5cf6;
+      --green: #34d399;
+      --amber: #feca57;
+      --blue: #60a5fa;
+      --ink: #f3f7f4;
+      --muted: #9caf9e;
+      --dim: #6b8a6b;
+      --line: rgba(107, 138, 107, .34);
+      --step-progress: 12.5%;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 20% 80%, var(--forest-1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, var(--forest-2) 0%, transparent 40%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      line-height: 1.55;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: -5%;
+      z-index: 1;
+      pointer-events: none;
+      opacity: .075;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      animation: noiseMove 20s linear infinite;
+    }
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+    #particlesCanvas { position: fixed; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; }
+
+    .page {
+      position: relative;
+      z-index: 10;
+      width: min(1460px, calc(100% - 48px));
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 28px 0 38px;
+    }
+    .page-header { text-align: center; animation: fadeInDown .7s ease both; }
+    .page-title {
+      margin: 0;
+      color: var(--purple);
+      font-size: clamp(2rem, 4vw, 3.25rem);
+      line-height: 1.08;
+      letter-spacing: -.03em;
+      text-shadow: 0 0 20px rgba(139, 92, 246, .38);
+      text-wrap: balance;
+    }
+    .page-subtitle { margin: 8px auto 0; color: var(--dim); font-size: clamp(.88rem, 1.5vw, 1.08rem); }
+
+    .controls-wrap {
+      position: sticky;
+      top: 10px;
+      z-index: 30;
+      max-width: 880px;
+      margin: 20px auto 24px;
+      padding: 10px;
+      background: rgba(10, 15, 13, .9);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      backdrop-filter: blur(12px);
+    }
+    .controls { display: flex; align-items: center; gap: 8px; }
+    .control-button {
+      min-height: 38px;
+      padding: 0 13px;
+      border: 1px solid rgba(107, 138, 107, .4);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, .035);
+      color: #dce8de;
+      cursor: pointer;
+      transition: background .2s ease, border-color .2s ease, transform .2s ease;
+    }
+    .control-button:hover:not(:disabled) { border-color: var(--green); background: rgba(52, 211, 153, .08); transform: translateY(-1px); }
+    .control-button:active:not(:disabled) { transform: scale(.98); }
+    .control-button:disabled { opacity: .35; cursor: not-allowed; }
+    .control-button.primary { min-width: 106px; border-color: rgba(139, 92, 246, .55); background: rgba(139, 92, 246, .16); color: #c4a7ff; font-weight: 700; }
+    .counter { margin-left: auto; color: var(--amber); font: 700 .76rem ui-monospace, "Cascadia Code", monospace; white-space: nowrap; }
+    .progress { height: 2px; margin-top: 9px; overflow: hidden; background: rgba(107, 138, 107, .2); }
+    .progress::after { content: ""; display: block; width: var(--step-progress); height: 100%; background: linear-gradient(90deg, var(--purple), var(--green)); transition: width .45s ease; }
+
+    .demo-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 310px;
+      border: 1px solid rgba(107, 138, 107, .26);
+      border-radius: 16px;
+      background: rgba(255, 255, 255, .018);
+    }
+    .visual-stage { position: relative; min-height: 580px; padding: clamp(24px, 3.4vw, 46px); overflow: hidden; }
+    .visual-stage::after { content: ""; position: absolute; inset: 16% 22%; z-index: -1; background: radial-gradient(circle, rgba(52, 211, 153, .055), transparent 68%); }
+    .scene { display: none; min-height: 486px; }
+    .scene.active { display: flex; flex-direction: column; animation: fadeIn .42s ease both; }
+    .scene-kicker { color: var(--green); font: 700 .7rem ui-monospace, "Cascadia Code", monospace; letter-spacing: .12em; }
+    .scene-title { margin: 6px 0 0; font-size: clamp(1.45rem, 2.6vw, 2.35rem); line-height: 1.16; letter-spacing: -.025em; text-wrap: balance; }
+    .scene-hint { margin: 7px 0 0; color: var(--dim); font-size: .78rem; }
+
+    .architecture-diagram { display: flex; align-items: center; justify-content: center; gap: clamp(12px, 2vw, 24px); width: 100%; margin: auto 0; }
+    .input-module { display: flex; flex-direction: column; align-items: center; gap: 10px; opacity: 0; animation: fadeInUp .55s .12s ease forwards; }
+    .input-icon { width: 54px; height: 54px; display: grid; place-items: center; border: 2px solid rgba(96, 165, 250, .45); border-radius: 12px; background: rgba(96, 165, 250, .09); color: var(--blue); }
+    .input-icon svg { width: 27px; height: 27px; }
+    .input-label { color: var(--blue); font-size: .72rem; text-align: center; }
+    .input-words { display: flex; flex-direction: column; gap: 7px; }
+    .input-word { min-width: 62px; padding: 5px 10px; border: 1px solid currentColor; border-radius: 6px; text-align: center; font: 700 .76rem ui-monospace, monospace; opacity: 0; animation: fadeInUp .45s ease forwards; }
+    .input-word:nth-child(1) { color: var(--blue); background: rgba(96,165,250,.12); animation-delay: .25s; }
+    .input-word:nth-child(2) { color: var(--green); background: rgba(52,211,153,.1); animation-delay: .37s; }
+    .input-word:nth-child(3) { color: var(--amber); background: rgba(254,202,87,.1); animation-delay: .49s; }
+
+    .connector { min-width: clamp(52px, 7vw, 100px); opacity: 0; animation: fadeIn .45s .68s ease forwards; }
+    .connector-line { position: relative; height: 2px; background: repeating-linear-gradient(90deg, rgba(107,138,107,.7) 0 6px, transparent 6px 10px); }
+    .connector-line::after { content: ""; position: absolute; right: -6px; top: 50%; border-left: 8px solid rgba(107,138,107,.7); border-top: 5px solid transparent; border-bottom: 5px solid transparent; transform: translateY(-50%); }
+    .connector-label { display: block; margin-top: 8px; color: var(--dim); font-size: .65rem; text-align: center; white-space: nowrap; }
+    .connector.second { animation-delay: 1.25s; }
+
+    .core-module { position: relative; flex: 0 0 154px; height: 154px; display: grid; place-items: center; border: 2px solid rgba(139,92,246,.52); border-radius: 50%; background: rgba(139,92,246,.08); text-align: center; opacity: 0; animation: fadeInUp .58s .82s ease forwards; }
+    .core-module::before { content: ""; position: absolute; inset: 8px; border: 1px solid rgba(139,92,246,.3); border-radius: 50%; }
+    .core-module::after { content: ""; position: absolute; inset: -10px; border: 1px dashed rgba(139,92,246,.2); border-radius: 50%; animation: rotate 10s linear infinite; }
+    .core-symbol { color: var(--purple); font: 800 2.35rem/1 ui-monospace, monospace; text-shadow: 0 0 15px rgba(139,92,246,.4); }
+    .core-label { margin-top: 6px; color: #b99af8; font-size: .7rem; font-weight: 700; line-height: 1.35; }
+    .core-detail { margin-top: 4px; color: var(--dim); font-size: .62rem; }
+
+    .layer-group { position: relative; min-width: 225px; padding: 35px 18px 18px; border: 1.5px dashed rgba(107,138,107,.48); border-radius: 16px; opacity: 0; animation: fadeIn .65s 1.45s ease forwards; }
+    .layer-header { position: absolute; top: -12px; left: 16px; display: flex; align-items: center; gap: 7px; padding: 0 10px; background: var(--bg); color: var(--purple); }
+    .layer-header svg { width: 17px; height: 17px; }
+    .layer-title { font: 700 .68rem ui-monospace, monospace; letter-spacing: .08em; }
+    .layer-content { display: flex; flex-direction: column; gap: 10px; }
+    .state-card { padding: 11px 13px; border: 1px solid rgba(139,92,246,.28); border-radius: 10px; background: rgba(255,255,255,.028); opacity: 0; transform: translateY(12px); animation: fadeInUp .45s ease forwards; }
+    .state-card:nth-child(1) { animation-delay: 1.68s; }
+    .state-card:nth-child(2) { animation-delay: 1.86s; }
+    .state-card:nth-child(3) { animation-delay: 2.04s; }
+    .state-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .state-card-title { color: var(--purple); font-size: .78rem; font-weight: 700; }
+    .state-card-desc { margin-top: 3px; color: #aeb9b0; font-size: .67rem; }
+    .state-memory { padding: 3px 7px; border: 1px solid rgba(254,202,87,.22); border-radius: 5px; background: rgba(254,202,87,.08); color: var(--amber); font: 700 .61rem ui-monospace, monospace; white-space: nowrap; }
+    .state-card.green { border-color: rgba(52,211,153,.3); }
+    .state-card.green .state-card-title { color: var(--green); }
+
+    .loop-indicator { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: auto; padding-top: 18px; color: var(--dim); font-size: .73rem; opacity: 0; animation: fadeIn .55s 2.18s ease forwards; }
+    .loop-arrow-icon { width: 36px; height: 36px; color: var(--purple); }
+    .loop-arrow-icon svg { width: 100%; height: 100%; animation: rotate 4s linear infinite; }
+
+    .block-strip { display: flex; align-items: stretch; gap: 9px; width: 100%; }
+    .block-unit { position: relative; flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; padding: 29px 9px 9px; border: 1.5px dashed var(--line); border-radius: 13px; opacity: 0; animation: fadeInUp .55s ease forwards; }
+    .block-unit:nth-child(1) { animation-delay: .25s; }
+    .block-unit:nth-child(3) { animation-delay: .65s; }
+    .block-name { position: absolute; top: 7px; left: 10px; color: var(--dim); font: .61rem ui-monospace, monospace; }
+    .mini-layer { min-height: 92px; display: grid; place-items: center; padding: 6px; border: 1px solid rgba(52,211,153,.3); border-radius: 8px; background: rgba(52,211,153,.06); color: var(--green); font-size: .7rem; font-weight: 700; text-align: center; }
+    .mini-layer.mla { border-color: rgba(139,92,246,.4); background: rgba(139,92,246,.09); color: #a985f8; }
+    .strip-arrow { align-self: center; color: var(--dim); }
+    .tail-layer { min-width: 78px; display: grid; place-items: center; padding: 9px; border: 1px solid rgba(139,92,246,.45); border-radius: 10px; background: rgba(139,92,246,.09); color: #ad8cf7; text-align: center; font-size: .7rem; opacity: 0; animation: fadeInUp .55s 1.05s ease forwards; }
+    .ratio-note { margin: 20px auto 0; color: var(--muted); font-size: .76rem; text-align: center; }
+    .ratio-note b { display: inline-block; margin-right: 8px; padding: 4px 9px; border-radius: 5px; background: rgba(254,202,87,.13); color: var(--amber); }
+
+    .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: min(760px, 100%); margin: auto; }
+    .compare-group { position: relative; padding: 35px 17px 16px; border: 1.5px dashed var(--line); border-radius: 14px; opacity: 0; animation: fadeInUp .5s ease forwards; }
+    .compare-group:nth-child(2) { animation-delay: .22s; }
+    .compare-group h3 { position: absolute; top: -14px; left: 15px; margin: 0; padding: 2px 10px; background: var(--bg); color: var(--green); font-size: 1rem; }
+    .compare-group.mla h3 { color: var(--purple); }
+    .compare-row { display: grid; grid-template-columns: 78px 1fr; gap: 8px; padding: 9px 0; border-bottom: 1px solid rgba(107,138,107,.16); font-size: .7rem; }
+    .compare-row:last-child { border-bottom: 0; }
+    .compare-row span { color: var(--dim); }
+
+    .narrative { display: flex; flex-direction: column; padding: 32px 26px; border-left: 1px solid rgba(107,138,107,.24); background: rgba(10,15,13,.56); }
+    .step-label { color: var(--amber); font: 700 .68rem ui-monospace, monospace; letter-spacing: .1em; }
+    #stepTitle { margin: 10px 0 0; font-size: 1.55rem; line-height: 1.18; letter-spacing: -.02em; }
+    #stepText { margin: 16px 0 0; color: var(--muted); font-size: .84rem; }
+    .plain-box { margin-top: 22px; padding: 14px; border: 1px solid rgba(52,211,153,.22); border-radius: 10px; background: rgba(52,211,153,.035); }
+    .plain-box > span { color: var(--green); font: 700 .66rem ui-monospace, monospace; }
+    #plainText { margin: 6px 0 0; color: #d5dfd7; font-size: .76rem; }
+    .term-list { display: grid; gap: 8px; margin-top: auto; padding-top: 22px; }
+    .term { display: grid; grid-template-columns: 62px 1fr; gap: 8px; padding-top: 8px; border-top: 1px solid rgba(107,138,107,.18); color: var(--muted); font-size: .66rem; }
+    .term b { color: var(--purple); }
+
+    .legend { display: flex; justify-content: center; flex-wrap: wrap; gap: 18px; margin-top: 16px; color: var(--dim); font-size: .67rem; }
+    .legend span::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--c); }
+    .footnote { max-width: 860px; margin: 16px auto 0; color: #647566; font-size: .64rem; text-align: center; }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeInDown { from { opacity: 0; transform: translateY(-18px); } to { opacity: 1; transform: none; } }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+    @keyframes rotate { to { transform: rotate(360deg); } }
+    @keyframes noiseMove { 0%, 50%, 100% { transform: translate(0) scale(1.1); } 25% { transform: translate(-2%, -2%) scale(1.05); } 75% { transform: translate(2%, 2%) scale(1.05); } }
+
+    @media (max-width: 1050px) {
+      .demo-shell { grid-template-columns: 1fr; }
+      .narrative { min-height: 340px; border-top: 1px solid rgba(107,138,107,.24); border-left: 0; }
+      .architecture-diagram { gap: 12px; }
+      .connector { min-width: 44px; }
+      .core-module { flex-basis: 138px; height: 138px; }
+      .layer-group { min-width: 205px; }
+    }
+    @media (max-width: 720px) {
+      .page { width: min(100% - 20px, 1460px); padding-top: 18px; }
+      .controls { display: grid; grid-template-columns: repeat(3, 1fr); }
+      .control-button { padding: 0 7px; font-size: .75rem; }
+      .control-button.primary { grid-column: span 2; min-width: 0; }
+      .counter { margin: 0; text-align: center; }
+      .visual-stage { min-height: 820px; padding: 24px 14px; }
+      .scene { min-height: 762px; }
+      .architecture-diagram { flex-direction: column; margin-top: 22px; }
+      .connector { width: 68px; min-width: 0; transform: rotate(90deg); }
+      .connector-label { transform: rotate(-90deg) translate(22px, 18px); }
+      .core-module { flex: 0 0 132px; width: 132px; height: 132px; }
+      .layer-group { width: min(100%, 330px); }
+      .loop-indicator { padding-top: 12px; }
+      .block-strip { display: grid; grid-template-columns: 1fr 20px 74px; }
+      .block-unit:nth-child(3) { display: none; }
+      .mini-layer { min-height: 74px; }
+      .compare { grid-template-columns: 1fr; margin-top: 24px; }
+      .scene:has(.compare) { min-height: 650px; }
+      .narrative { padding: 25px 20px; }
+    }
+    @media (max-width: 440px) {
+      .block-unit { grid-template-columns: repeat(2, 1fr); }
+      .mini-layer { min-height: 60px; }
+      .visual-stage:has(.block-strip) { min-height: 670px; }
+      .scene:has(.block-strip) { min-height: 612px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="particlesCanvas" aria-hidden="true"></canvas>
+  <main class="page">
+    <header class="page-header">
+      <h1 class="page-title">KDA 固定状态与 MLA 全局交互</h1>
+      <p class="page-subtitle">Kimi K3 Hybrid Attention 的记忆核心与循环机制</p>
+    </header>
+
+    <section class="controls-wrap" aria-label="动画控制器">
+      <div class="controls">
+        <button class="control-button primary" id="playButton" type="button" aria-pressed="true">❚❚ 暂停</button>
+        <button class="control-button" id="resetButton" type="button">↺ 重置</button>
+        <button class="control-button" id="prevButton" type="button">← 上一步</button>
+        <button class="control-button" id="nextButton" type="button">下一步 →</button>
+        <span class="counter" id="counter" aria-live="polite">01 / 08</span>
+      </div>
+      <div class="progress" aria-hidden="true"></div>
+    </section>
+
+    <section class="demo-shell" aria-label="KDA 与 MLA 八步工作原理演示">
+      <div class="visual-stage">
+        <article class="scene active" data-step="0">
+          <span class="scene-kicker">HYBRID RHYTHM · 混合节奏</span>
+          <h2 class="scene-title">每个 block：3 KDA + 1 MLA</h2>
+          <p class="scene-hint">主干按相同节奏循环，末尾再追加一层 MLA。</p>
+          <div class="architecture-diagram">
+            <div class="block-strip">
+              <div class="block-unit"><span class="block-name">BLOCK n</span><div class="mini-layer">KDA ①</div><div class="mini-layer">KDA ②</div><div class="mini-layer">KDA ③</div><div class="mini-layer mla">Gated<br>MLA</div></div>
+              <span class="strip-arrow">→</span>
+              <div class="block-unit"><span class="block-name">BLOCK n+1</span><div class="mini-layer">KDA ①</div><div class="mini-layer">KDA ②</div><div class="mini-layer">KDA ③</div><div class="mini-layer mla">Gated<br>MLA</div></div>
+              <span class="strip-arrow">→</span><div class="tail-layer">末尾<br><b>MLA</b></div>
+            </div>
+          </div>
+          <p class="ratio-note"><b>3 : 1</b>固定状态承担大多数层，全局交互周期性校准。</p>
+        </article>
+
+        <article class="scene" data-step="1">
+          <span class="scene-kicker">KDA · INPUT MODULE</span><h2 class="scene-title">输入 token 投影为 q / k / v</h2>
+          <div class="architecture-diagram">
+            <div class="input-module"><div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg></div><div class="input-label">INPUT TOKEN<br>xₜ</div><div class="input-words"><div class="input-word">qₜ</div><div class="input-word">kₜ</div><div class="input-word">vₜ</div></div></div>
+            <div class="connector"><div class="connector-line"></div><span class="connector-label">线性投影</span></div>
+            <div class="core-module"><div><div class="core-symbol">α β</div><div class="core-label">KDA GATES</div><div class="core-detail">保留 / 写入</div></div></div>
+            <div class="connector second"><div class="connector-line"></div><span class="connector-label">进入状态</span></div>
+            <div class="layer-group"><div class="layer-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><span class="layer-title">PROJECTED SIGNALS</span></div><div class="layer-content"><div class="state-card"><div class="state-card-head"><span class="state-card-title">Query q</span><span class="state-memory">读取</span></div><div class="state-card-desc">当前 token 想从历史中找什么</div></div><div class="state-card green"><div class="state-card-head"><span class="state-card-title">Key k</span><span class="state-memory">寻址</span></div><div class="state-card-desc">新信息写入状态的位置特征</div></div><div class="state-card"><div class="state-card-head"><span class="state-card-title">Value v</span><span class="state-memory">内容</span></div><div class="state-card-desc">当前 token 携带的写入内容</div></div></div></div>
+          </div><div class="loop-indicator"><span>Token Projection</span><div class="loop-arrow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4v5h5m11 11v-5h-5M4.6 9a8 8 0 0115.3 2M19.4 15A8 8 0 014.1 13"/></svg></div><span>KDA Input</span></div>
+        </article>
+
+        <article class="scene" data-step="2">
+          <span class="scene-kicker">KDA · FIXED STATE WRITE</span><h2 class="scene-title">α 保留旧状态，β 写入新信息</h2>
+          <div class="architecture-diagram">
+            <div class="input-module"><div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5"/></svg></div><div class="input-label">CURRENT<br>kₜ / vₜ</div><div class="input-words"><div class="input-word">α = .72</div><div class="input-word">β = .58</div></div></div>
+            <div class="connector"><div class="connector-line"></div><span class="connector-label">门控更新</span></div>
+            <div class="core-module"><div><div class="core-symbol">S</div><div class="core-label">FIXED STATE</div><div class="core-detail">尺寸始终不变</div></div></div>
+            <div class="connector second"><div class="connector-line"></div><span class="connector-label">状态传递</span></div>
+            <div class="layer-group"><div class="layer-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5"/></svg><span class="layer-title">STATE UPDATE CHAIN</span></div><div class="layer-content"><div class="state-card"><div class="state-card-head"><span class="state-card-title">Sₜ₋₂</span><span class="state-memory">旧历史</span></div><div class="state-card-desc">递归状态持续压缩历史</div></div><div class="state-card green"><div class="state-card-head"><span class="state-card-title">Sₜ₋₁ × α</span><span class="state-memory">保留</span></div><div class="state-card-desc">旧记忆按保留门延续</div></div><div class="state-card"><div class="state-card-head"><span class="state-card-title">Sₜ + β(k,v)</span><span class="state-memory">写入</span></div><div class="state-card-desc">新信息更新同一个固定状态</div></div></div></div>
+          </div><div class="loop-indicator"><span>Previous State</span><div class="loop-arrow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4v5h5m11 11v-5h-5M4.6 9a8 8 0 0115.3 2M19.4 15A8 8 0 014.1 13"/></svg></div><span>Next State</span></div>
+        </article>
+
+        <article class="scene" data-step="3">
+          <span class="scene-kicker">KDA · READ & OUTPUT</span><h2 class="scene-title">q 从固定状态 S 读取并输出</h2>
+          <div class="architecture-diagram">
+            <div class="input-module"><div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></div><div class="input-label">QUERY<br>qₜ</div><div class="input-words"><div class="input-word">q × S</div></div></div>
+            <div class="connector"><div class="connector-line"></div><span class="connector-label">查询历史</span></div>
+            <div class="core-module"><div><div class="core-symbol">Sₜ</div><div class="core-label">KDA MEMORY CORE</div><div class="core-detail">压缩历史表示</div></div></div>
+            <div class="connector second"><div class="connector-line"></div><span class="connector-label">读取结果</span></div>
+            <div class="layer-group"><div class="layer-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M13 6l6 6-6 6"/></svg><span class="layer-title">KDA OUTPUT LAYER</span></div><div class="layer-content"><div class="state-card"><div class="state-card-head"><span class="state-card-title">读取 Sₜ</span><span class="state-memory">压缩历史</span></div><div class="state-card-desc">无需逐个展开全部旧 token</div></div><div class="state-card green"><div class="state-card-head"><span class="state-card-title">形成 oₜ</span><span class="state-memory">输出</span></div><div class="state-card-desc">把相关历史送往下一层</div></div><div class="state-card"><div class="state-card-head"><span class="state-card-title">传递 Sₜ</span><span class="state-memory">循环</span></div><div class="state-card-desc">供下一个 token 继续更新</div></div></div></div>
+          </div><div class="loop-indicator"><span>Read State</span><div class="loop-arrow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4v5h5m11 11v-5h-5M4.6 9a8 8 0 0115.3 2M19.4 15A8 8 0 014.1 13"/></svg></div><span>Carry State</span></div>
+        </article>
+
+        <article class="scene" data-step="4">
+          <span class="scene-kicker">MLA · LATENT KV</span><h2 class="scene-title">低维 latent KV 保留逐位置历史</h2>
+          <div class="architecture-diagram">
+            <div class="input-module"><div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div><div class="input-label">HISTORY<br>TOKENS</div><div class="input-words"><div class="input-word">t-2</div><div class="input-word">t-1</div><div class="input-word">t</div></div></div>
+            <div class="connector"><div class="connector-line"></div><span class="connector-label">低维压缩</span></div>
+            <div class="core-module"><div><div class="core-symbol">c<sup>KV</sup></div><div class="core-label">LATENT KV CORE</div><div class="core-detail">紧凑逐位置缓存</div></div></div>
+            <div class="connector second"><div class="connector-line"></div><span class="connector-label">全局寻址</span></div>
+            <div class="layer-group"><div class="layer-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5"/></svg><span class="layer-title">LATENT KV LAYER</span></div><div class="layer-content"><div class="state-card"><div class="state-card-head"><span class="state-card-title">c₁ᴷⱽ</span><span class="state-memory">位置 1</span></div><div class="state-card-desc">历史 token 的低维潜表示</div></div><div class="state-card"><div class="state-card-head"><span class="state-card-title">c₂ᴷⱽ …</span><span class="state-memory">位置 2…</span></div><div class="state-card-desc">cache 随位置保留索引</div></div><div class="state-card green"><div class="state-card-head"><span class="state-card-title">Global Read</span><span class="state-memory">全局交互</span></div><div class="state-card-desc">当前 token 可读取全局历史</div></div></div></div>
+          </div><div class="loop-indicator"><span>Latent Cache</span><div class="loop-arrow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4v5h5m11 11v-5h-5M4.6 9a8 8 0 0115.3 2M19.4 15A8 8 0 014.1 13"/></svg></div><span>Global Tokens</span></div>
+        </article>
+
+        <article class="scene" data-step="5">
+          <span class="scene-kicker">GATED MLA · SELECTIVE FUSION</span><h2 class="scene-title">门控调节全局结果的注入强度</h2>
+          <div class="architecture-diagram">
+            <div class="input-module"><div class="input-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/></svg></div><div class="input-label">GLOBAL<br>ATTENTION</div><div class="input-words"><div class="input-word">MLA out</div></div></div>
+            <div class="connector"><div class="connector-line"></div><span class="connector-label">全局结果</span></div>
+            <div class="core-module"><div><div class="core-symbol">g</div><div class="core-label">FUSION GATE</div><div class="core-detail">选择性采用</div></div></div>
+            <div class="connector second"><div class="connector-line"></div><span class="connector-label">注入当前层</span></div>
+            <div class="layer-group"><div class="layer-header"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 12h16M12 4v16"/></svg><span class="layer-title">GATED OUTPUT LAYER</span></div><div class="layer-content"><div class="state-card"><div class="state-card-head"><span class="state-card-title">全局读取</span><span class="state-memory">MLA</span></div><div class="state-card-desc">从 latent KV 聚合历史</div></div><div class="state-card green"><div class="state-card-head"><span class="state-card-title">乘以门值 g</span><span class="state-memory">选择</span></div><div class="state-card-desc">调节本次采用多少全局信息</div></div><div class="state-card"><div class="state-card-head"><span class="state-card-title">融合输出</span><span class="state-memory">NEXT</span></div><div class="state-card-desc">送入后续混合注意力层</div></div></div></div>
+          </div><div class="loop-indicator"><span>Global Read</span><div class="loop-arrow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4v5h5m11 11v-5h-5M4.6 9a8 8 0 0115.3 2M19.4 15A8 8 0 014.1 13"/></svg></div><span>Selective Fusion</span></div>
+        </article>
+
+        <article class="scene" data-step="6">
+          <span class="scene-kicker">TRADE-OFF · MECHANISM MAP</span><h2 class="scene-title">固定状态与全局寻址，各有分工</h2>
+          <div class="compare"><section class="compare-group"><h3>KDA · S</h3><div class="compare-row"><span>历史表示</span><b>单个固定大小状态</b></div><div class="compare-row"><span>序列增长</span><b>状态尺寸不变</b></div><div class="compare-row"><span>信息读取</span><b>查询压缩历史</b></div><div class="compare-row"><span>职责</span><b>高效顺序推进</b></div></section><section class="compare-group mla"><h3>MLA · cᴷⱽ</h3><div class="compare-row"><span>历史表示</span><b>逐位置 latent KV</b></div><div class="compare-row"><span>序列增长</span><b>cache 随位置增长</b></div><div class="compare-row"><span>信息读取</span><b>全局 token 交互</b></div><div class="compare-row"><span>职责</span><b>精细远程检索</b></div></section></div>
+          <div class="loop-indicator"><span>Fixed State Efficiency</span><div class="loop-arrow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4v5h5m11 11v-5h-5M4.6 9a8 8 0 0115.3 2M19.4 15A8 8 0 014.1 13"/></svg></div><span>Global Precision</span></div>
+        </article>
+
+        <article class="scene" data-step="7">
+          <span class="scene-kicker">WHY HYBRID · FINAL LOOP</span><h2 class="scene-title">三次压缩推进，一次全局校准</h2>
+          <div class="architecture-diagram"><div class="block-strip"><div class="block-unit"><span class="block-name">REPEATING BLOCK</span><div class="mini-layer">KDA<br>S₁</div><div class="mini-layer">KDA<br>S₂</div><div class="mini-layer">KDA<br>S₃</div><div class="mini-layer mla">Gated<br>MLA</div></div><span class="strip-arrow">↻</span><div class="block-unit"><span class="block-name">NEXT BLOCK</span><div class="mini-layer">KDA<br>S₁</div><div class="mini-layer">KDA<br>S₂</div><div class="mini-layer">KDA<br>S₃</div><div class="mini-layer mla">Gated<br>MLA</div></div><span class="strip-arrow">→</span><div class="tail-layer">FINAL<br><b>MLA</b></div></div></div>
+          <div class="loop-indicator"><span>3 × KDA</span><div class="loop-arrow-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4v5h5m11 11v-5h-5M4.6 9a8 8 0 0115.3 2M19.4 15A8 8 0 014.1 13"/></svg></div><span>1 × MLA · 末尾再 MLA</span></div>
+        </article>
+      </div>
+
+      <aside class="narrative">
+        <span class="step-label" id="stepLabel">STEP 01 · 总览</span><h2 id="stepTitle">先看 K3 的注意力节奏</h2><p id="stepText">每个 block 依次放置 3 层 KDA 和 1 层 Gated MLA。这样的 block 重复堆叠，主干末尾还会额外增加一层 MLA。</p>
+        <div class="plain-box"><span>直观理解</span><p id="plainText">KDA 像边读边更新一页摘要；MLA 像隔一段时间重新摊开整套索引，查找远处的原文。</p></div>
+        <div class="term-list" id="termList"><div class="term"><b>KDA</b><span>Kimi Delta Attention，使用递归状态压缩历史。</span></div><div class="term"><b>MLA</b><span>Multi-head Latent Attention，用低维 latent 压缩 KV cache。</span></div></div>
+      </aside>
+    </section>
+
+    <div class="legend" aria-label="颜色图例"><span style="--c:var(--purple)">核心 / MLA latent</span><span style="--c:var(--green)">KDA 状态流</span><span style="--c:var(--amber)">门控 / 写入</span><span style="--c:var(--blue)">输入 q / k / v</span></div>
+    <p class="footnote">概念级原理演示：节点和门值用于解释信息流，不代表真实推理数值。页面结构与动效明确沿用 AI-Animation-Skill 的 RNN-3 模板，内容重构为 Kimi K3 Hybrid Attention。</p>
+  </main>
+
+  <script>
+    (() => {
+      const steps = [
+        { label: 'STEP 01 · 总览', title: '先看 K3 的注意力节奏', text: '每个 block 依次放置 3 层 KDA 和 1 层 Gated MLA。这样的 block 重复堆叠，主干末尾还会额外增加一层 MLA。', plain: 'KDA 像边读边更新一页摘要；MLA 像隔一段时间重新摊开整套索引，查找远处的原文。', terms: [['KDA', 'Kimi Delta Attention，使用递归状态压缩历史。'], ['MLA', 'Multi-head Latent Attention，用低维 latent 压缩 KV cache。']] },
+        { label: 'STEP 02 · KDA 输入', title: '一个 token 变成 q、k、v', text: '当前 token 经投影得到 query、key、value。q 表示想读什么，k 提供写入状态的地址特征，v 携带要写入的内容；门值也由当前输入计算。', plain: '做笔记前先拆成三个问题：我要找什么、这条信息属于哪里、具体内容是什么。', terms: [['q', 'Query，当前 token 用来读取状态的查询。'], ['k / v', 'Key 与 Value，参与更新递归状态。']] },
+        { label: 'STEP 03 · KDA 写入', title: 'α 保留，β 写入，S 的尺寸不变', text: '保留门 α 控制旧状态延续多少，写入强度 β 控制当前 k、v 对状态的更新幅度。历史不断进入同一个固定尺寸的递归状态 S。', plain: '不是无限增加笔记页，而是决定旧句保留多少、新句写入多重，再更新同一页摘要。', terms: [['α', 'Retention gate，旧信息的保留门。'], ['β', 'Write strength，新信息的写入强度。'], ['S', '固定大小的递归状态，保存压缩历史。']] },
+        { label: 'STEP 04 · KDA 读取', title: 'q 查询状态 S，得到本层输出', text: '状态先吸收当前 k、v，再由 q 从 S 中读取与当前 token 有关的信息，形成 KDA 输出。生成继续进行时，S 的内容变化，但尺寸保持固定。', plain: '新问题不翻遍所有旧页，而是直接查询那页持续更新的摘要。', terms: [['递归', '上一步状态参与下一步状态的计算。'], ['固定大小', '状态张量尺寸不随 token 数持续增加。']] },
+        { label: 'STEP 05 · MLA 全局读取', title: 'latent KV 保留逐位置全局寻址', text: 'MLA 将历史 token 的 K/V 压到低维 latent 表示后缓存。缓存更紧凑，但仍按历史位置保留，因此当前 token 可以与全局 token 交互。', plain: '给每份原文保留一张精简索引卡，需要时仍能定位到远处的具体内容。', terms: [['latent', '低维潜表示，浓缩原始 K/V 信息。'], ['KV cache', '缓存历史注意力表示，避免每步重复计算。']] },
+        { label: 'STEP 06 · Gated MLA', title: '门控决定全局信息注入多少', text: 'Gated MLA 用学习到的门值调节全局注意力结果，使模型选择性地将全局信息融合进当前表示，而不是无条件全部采用。', plain: '翻开全套索引后，还要判断查到的资料是否值得写进当前答案。', terms: [['Gated', '通过学习到的门值调节信息通路。'], ['全局交互', '当前 token 可对整个上下文进行内容相关读取。']] },
+        { label: 'STEP 07 · 对比', title: '省空间与精细寻址是一组取舍', text: 'KDA 把历史递归压进固定状态；MLA 保存每个历史位置的低维 cache，虽然仍随序列增长，却保留更直接的全局 token 交互。', plain: '总摘要很省空间，索引卡更方便准确回查，两者承担不同职责。', terms: [['KDA 优势', '固定状态适合高效处理超长序列。'], ['MLA 优势', '逐位置表示支持更精细的全局检索。']] },
+        { label: 'STEP 08 · 为什么混合', title: '3 次压缩推进，1 次全局校准', text: 'K3 让大多数层使用 KDA 控制长上下文状态成本，再周期性插入 Gated MLA 恢复全局 token 交互；末尾额外 MLA 让最终表示再经历一次全局整合。', plain: '平时高效更新摘要，定期回查原始索引，交卷前再做一次全局核对。', terms: [['结构', '每 block：3 KDA + 1 Gated MLA。'], ['末尾', '主干结束后额外增加一层 MLA。'], ['核心', '混合机制同时照顾效率与全局交互。']] }
+      ];
+      const scenes = [...document.querySelectorAll('.scene')];
+      const playButton = document.getElementById('playButton');
+      const resetButton = document.getElementById('resetButton');
+      const prevButton = document.getElementById('prevButton');
+      const nextButton = document.getElementById('nextButton');
+      const counter = document.getElementById('counter');
+      const stepLabel = document.getElementById('stepLabel');
+      const stepTitle = document.getElementById('stepTitle');
+      const stepText = document.getElementById('stepText');
+      const plainText = document.getElementById('plainText');
+      const termList = document.getElementById('termList');
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let current = 0;
+      let playing = !reducedMotion;
+      let timer = null;
+
+      function render() {
+        const step = steps[current];
+        scenes.forEach((scene, index) => scene.classList.toggle('active', index === current));
+        stepLabel.textContent = step.label;
+        stepTitle.textContent = step.title;
+        stepText.textContent = step.text;
+        plainText.textContent = step.plain;
+        termList.replaceChildren(...step.terms.map(([term, meaning]) => {
+          const row = document.createElement('div');
+          const name = document.createElement('b');
+          const detail = document.createElement('span');
+          row.className = 'term'; name.textContent = term; detail.textContent = meaning;
+          row.append(name, detail); return row;
+        }));
+        counter.textContent = `${String(current + 1).padStart(2, '0')} / ${String(steps.length).padStart(2, '0')}`;
+        document.documentElement.style.setProperty('--step-progress', `${(current + 1) / steps.length * 100}%`);
+        prevButton.disabled = current === 0;
+        nextButton.disabled = current === steps.length - 1;
+      }
+      function updatePlayButton() { playButton.textContent = playing ? '❚❚ 暂停' : '▶ 自动播放'; playButton.setAttribute('aria-pressed', String(playing)); }
+      function schedule() {
+        clearTimeout(timer);
+        if (!playing) return;
+        timer = setTimeout(() => {
+          if (current < steps.length - 1) current += 1;
+          else { playing = false; updatePlayButton(); }
+          render(); schedule();
+        }, 5200);
+      }
+      function go(delta) { current = Math.max(0, Math.min(steps.length - 1, current + delta)); render(); schedule(); }
+      playButton.addEventListener('click', () => { if (!playing && current === steps.length - 1) current = 0; playing = !playing; updatePlayButton(); render(); schedule(); });
+      resetButton.addEventListener('click', () => { current = 0; playing = !reducedMotion; updatePlayButton(); render(); schedule(); });
+      prevButton.addEventListener('click', () => go(-1));
+      nextButton.addEventListener('click', () => go(1));
+      document.addEventListener('keydown', event => {
+        if (event.target instanceof HTMLButtonElement) return;
+        if (event.key === 'ArrowLeft') go(-1);
+        if (event.key === 'ArrowRight') go(1);
+        if (event.key === ' ') { event.preventDefault(); playButton.click(); }
+      });
+      document.addEventListener('visibilitychange', () => { if (document.hidden) clearTimeout(timer); else schedule(); });
+
+      const canvas = document.getElementById('particlesCanvas');
+      const context = canvas.getContext('2d');
+      const particles = Array.from({ length: reducedMotion ? 32 : 72 }, () => ({ x: Math.random(), y: Math.random(), size: Math.random() * 1.4 + .4, dx: (Math.random() - .5) * .00018, dy: (Math.random() - .5) * .00018, alpha: Math.random() * .35 + .08 }));
+      function resizeCanvas() { const ratio = Math.min(window.devicePixelRatio || 1, 2); canvas.width = innerWidth * ratio; canvas.height = innerHeight * ratio; context.setTransform(ratio, 0, 0, ratio, 0, 0); }
+      function drawParticles(move = true) {
+        context.clearRect(0, 0, innerWidth, innerHeight);
+        particles.forEach(particle => {
+          if (move) { particle.x = (particle.x + particle.dx + 1) % 1; particle.y = (particle.y + particle.dy + 1) % 1; }
+          context.fillStyle = `rgba(139, 92, 246, ${particle.alpha})`;
+          context.beginPath(); context.arc(particle.x * innerWidth, particle.y * innerHeight, particle.size, 0, Math.PI * 2); context.fill();
+        });
+        if (!reducedMotion) requestAnimationFrame(() => drawParticles(true));
+      }
+      window.addEventListener('resize', resizeCanvas, { passive: true });
+      resizeCanvas(); drawParticles(!reducedMotion);
+      updatePlayButton(); render(); schedule();
+    })();
+  </script>
+</body>
+</html>

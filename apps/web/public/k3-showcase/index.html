@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kimi K3 可视化学习套件</title>
+  <style>
+    :root{color-scheme:light dark;--bg:#f4f5f7;--ink:#121522;--muted:#5c6377;--line:#cbd0dc;--primary:#293bb8;--accent:#e6ae36;--panel:#fff}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--ink);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif}a{color:inherit;text-decoration:none}
+    header,main,footer{width:min(1180px,calc(100% - 40px));margin:auto}header{min-height:56vh;display:grid;grid-template-columns:1.25fr .75fr;gap:48px;align-items:center;padding:72px 0 48px;border-bottom:1px solid var(--line)}
+    .tag{font:700 12px/1 ui-monospace,monospace;color:var(--primary);letter-spacing:.12em}.hero h1{max-width:12ch;margin:20px 0;font-size:clamp(3.2rem,7vw,6.8rem);line-height:.94;letter-spacing:-.05em}.hero p{max-width:640px;color:var(--muted);font-size:18px;line-height:1.8}
+    .stat{display:grid;place-content:center;aspect-ratio:1;border-radius:50%;background:var(--primary);color:#fff;text-align:center;box-shadow:0 10px 0 #152166}.stat strong{font-size:clamp(52px,7vw,94px);line-height:1}.stat span{font-size:13px}
+    main{padding:80px 0 110px}.intro{max-width:700px;margin-bottom:42px}.intro h2{font-size:clamp(2rem,4vw,4rem);line-height:1.05;margin:0 0 14px}.intro p{color:var(--muted);line-height:1.75}
+    .grid{display:grid;grid-template-columns:repeat(2,1fr);border-top:1px solid var(--ink)}article{position:relative;min-height:300px;padding:34px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);transition:background .2s,transform .2s}article:nth-child(even){border-right:0}article:hover{background:var(--panel);transform:translateY(-3px)}article small{font:700 11px/1 ui-monospace,monospace;color:var(--primary)}article h3{margin:22px 0 12px;font-size:clamp(24px,3vw,38px);line-height:1.12}article p{max-width:48ch;color:var(--muted);line-height:1.7}article b{position:absolute;right:28px;bottom:25px;color:var(--primary)}
+    article.featured{grid-column:1/3;min-height:250px;background:var(--primary);color:#fff;border-right:0}article.featured small,article.featured b{color:#ffd46f}article.featured p{color:#dfe2ff}
+    footer{display:flex;justify-content:space-between;gap:30px;padding:34px 0;border-top:1px solid var(--line);color:var(--muted);font-size:12px}
+    a:focus-visible{outline:3px solid var(--accent);outline-offset:4px}
+    @media(max-width:700px){header{min-height:auto;grid-template-columns:1fr;padding-top:48px}.hero h1{font-size:3.6rem}.stat{width:220px;margin:auto}.grid{grid-template-columns:1fr}article,article:nth-child(even),article.featured{grid-column:auto;border-right:0}footer{flex-direction:column}}
+    @media(prefers-color-scheme:dark){:root{--bg:#101116;--ink:#eef0f7;--muted:#a9afc1;--line:#34394a;--primary:#6879ef;--panel:#191c25}.stat{box-shadow:0 10px 0 #333d92}article.featured{background:#293580}}
+    @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hero"><div class="tag">KIMI K3 · VISUAL LEARNING KIT</div><h1>五种方式，读懂一篇论文。</h1><p>从八页演示到工程架构图，从动态原理到完整学习笔记。选择适合你的阅读方式。</p></div>
+    <div class="stat"><span>总参数</span><strong>2.8T</strong><span>104.2B activated</span></div>
+  </header>
+  <main>
+    <div class="intro"><h2>选择一种入口</h2><p>五个页面均为独立 HTML，可以直接打开、分享或全屏展示。建议先看 PPT，再进入原理动画与笔记。</p></div>
+    <div class="grid">
+      <article><small>01 · LEVEL2 8-3 TEMPLATE</small><h3>八页动画演示</h3><p>用 VS 双栏与观点融合结构，掌握规模、架构、训练、基础设施、成绩和局限。</p><a href="ppt.html" aria-label="打开八页动画演示"><b>打开演示 →</b></a></article>
+      <article><small>02 · ANIMATION RNN-3 TEMPLATE</small><h3>KDA × MLA 原理动画</h3><p>沿递归状态链观察 token、门控、状态 S、latent KV cache 和全局交互。</p><a href="attention.html" aria-label="打开注意力原理动画"><b>开始播放 →</b></a></article>
+      <article class="featured"><small>03 · ENGINEERING VIEW</small><h3>Kimi K3 动态系统架构图</h3><p>从输入、主干、MoE、训练到在线服务的完整工程视图，支持暗亮主题与多格式导出。</p><a href="architecture.html" aria-label="打开动态系统架构图"><b>查看架构 →</b></a></article>
+      <article><small>04 · DEEP READING</small><h3>整篇论文学习笔记</h3><p>覆盖架构、训练方法、Agent 环境、基础设施、评测、安全、案例和批判性解读。</p><a href="notes.html" aria-label="打开完整学习笔记"><b>阅读全文 →</b></a></article>
+      <article><small>05 · STORY MODE</small><h3>架构卡片剧场</h3><p>用侧边栏叙事与 3D Coverflow，分七张卡片理解 K3 的核心组成。</p><a href="theater.html" aria-label="打开架构卡片剧场"><b>进入剧场 →</b></a></article>
+    </div>
+  </main>
+  <footer><span>模板来源：Unclecheng-li/AI-Animation-Skill · 内容依据 Kimi K3 Technical Report</span><a href="/k3">返回交互式论文导读 ↑</a></footer>
+</body>
+</html>

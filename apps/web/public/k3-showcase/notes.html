@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="面向初学者的 Kimi K3 技术报告单页学霸笔记，覆盖架构、训练、后训练、基础设施、评测、安全与局限。">
+  <title>Kimi K3 技术报告学霸笔记</title>
+  <style>
+    :root {
+      --desk: #292b2a;
+      --paper: #fbf3dc;
+      --paper-deep: #f4e8c8;
+      --line: rgba(95, 130, 152, .16);
+      --margin: rgba(179, 64, 54, .36);
+      --ink: #242a2d;
+      --muted: #5d625f;
+      --red: #a83b32;
+      --blue: #1e6284;
+      --green: #226a52;
+      --purple: #6e4c7b;
+      --orange: #995c20;
+      --yellow: rgba(244, 202, 68, .35);
+      --shadow: rgba(0, 0, 0, .24);
+      --hand: "Kalam", "Patrick Hand", "Comic Sans MS", "KaiTi", "STKaiti", cursive;
+      --body: "Patrick Hand", "Kalam", "KaiTi", "STKaiti", system-ui, sans-serif;
+      --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-width: 280px;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 20% 10%, rgba(255,255,255,.05), transparent 25rem),
+        repeating-linear-gradient(92deg, transparent 0 92px, rgba(255,255,255,.018) 93px 94px),
+        var(--desk);
+      font-family: var(--body);
+      font-size: 18px;
+      line-height: 1.7;
+    }
+    a { color: var(--blue); text-underline-offset: 3px; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 3px solid #0b6b91;
+      outline-offset: 4px;
+      border-radius: 3px;
+    }
+    .skip-link {
+      position: fixed;
+      left: 1rem;
+      top: -5rem;
+      z-index: 100;
+      padding: .65rem 1rem;
+      color: #fff;
+      background: #111;
+      border-radius: 4px;
+    }
+    .skip-link:focus { top: 1rem; }
+    .desk { width: min(1120px, calc(100% - 32px)); margin: 28px auto 48px; }
+    .notebook {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      padding: 56px 56px 70px 112px;
+      background-color: var(--paper);
+      background-image:
+        linear-gradient(90deg, transparent 82px, var(--margin) 83px, var(--margin) 85px, transparent 86px),
+        repeating-linear-gradient(0deg, transparent 0, transparent 34px, var(--line) 35px, var(--line) 36px);
+      border-radius: 5px 8px 10px 4px;
+      box-shadow: 0 2px 3px var(--shadow), 0 18px 50px rgba(0,0,0,.35);
+      transform: rotate(-.08deg);
+    }
+    .spiral { position: absolute; inset: 0 auto 0 19px; width: 52px; z-index: 4; display: flex; flex-direction: column; justify-content: space-around; padding: 32px 0; }
+    .hole { position: relative; width: 14px; height: 14px; border-radius: 50%; background: var(--desk); box-shadow: inset 1px 1px 3px #000; }
+    .hole::after { content: ""; position: absolute; left: -10px; top: -4px; width: 31px; height: 6px; border-radius: 4px; background: linear-gradient(#777, #c6c6c6 48%, #686868); box-shadow: 0 1px 2px #555; }
+    .tape { position: absolute; top: -9px; width: 125px; height: 34px; z-index: 3; background: rgba(255,255,255,.43); border: 1px solid rgba(120,110,80,.08); }
+    .tape.one { left: 105px; transform: rotate(-3deg); }
+    .tape.two { right: 70px; transform: rotate(2deg); }
+    .paperclip { position: absolute; z-index: 3; right: 26px; top: 48px; width: 26px; height: 65px; border: 3px solid #9a9c98; border-top: 0; border-radius: 0 0 14px 14px; transform: rotate(6deg); }
+    .paperclip::before { content: ""; position: absolute; left: 5px; top: 0; width: 10px; height: 27px; border: 3px solid #9a9c98; border-bottom: 0; border-radius: 12px 12px 0 0; }
+    .stain { position: absolute; z-index: -1; right: 3%; top: 27%; width: 130px; height: 130px; border: 3px solid rgba(126,79,38,.07); border-radius: 50%; box-shadow: 0 0 0 8px rgba(126,79,38,.025); pointer-events: none; }
+    .fold { position: absolute; right: 0; bottom: 0; width: 54px; height: 54px; background: linear-gradient(135deg, transparent 49%, var(--paper-deep) 50%); box-shadow: -2px -2px 4px rgba(0,0,0,.06); }
+    header { position: relative; padding: 0 0 1.2rem; }
+    .eyebrow { margin: 0; color: var(--blue); font-family: var(--mono); font-size: .82rem; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { position: relative; display: inline; margin: 0; font: 700 clamp(2.55rem, 7vw, 5.4rem)/1 var(--hand); letter-spacing: -.045em; }
+    h1::after { content: ""; position: absolute; z-index: -1; left: -.1em; right: -.08em; bottom: .05em; height: .18em; background: var(--yellow); transform: rotate(-1deg); }
+    .subtitle { max-width: 770px; margin: 1rem 0 .35rem; color: var(--blue); font-size: clamp(1.05rem, 2vw, 1.35rem); }
+    .meta { color: var(--muted); font-family: var(--mono); font-size: .78rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: .55rem; margin-top: 1rem; }
+    .stamp { display: inline-flex; align-items: center; min-height: 30px; padding: .15rem .58rem; border: 1.5px solid currentColor; border-radius: 4px; font: 700 .76rem/1.2 var(--body); }
+    .stamp.fact { color: var(--green); background: rgba(34,106,82,.08); }
+    .stamp.read { color: var(--purple); background: rgba(110,76,123,.08); }
+    .toc { position: relative; margin: 1.2rem 0 2.2rem; padding: 1rem 1.15rem; background: rgba(255,255,255,.42); border: 2px dashed rgba(30,98,132,.6); border-radius: 8px; }
+    .toc h2 { margin: 0 0 .5rem; font-size: 1.2rem; color: var(--blue); }
+    .toc-list { display: flex; flex-wrap: wrap; gap: .45rem .65rem; margin: 0; padding: 0; list-style: none; }
+    .toc a { display: inline-block; padding: .12rem .48rem; color: var(--ink); background: rgba(255,255,255,.68); border: 1px solid rgba(36,42,45,.25); border-radius: 4px; text-decoration: none; font-size: .88rem; }
+    .toc a:hover { border-color: var(--blue); color: var(--blue); }
+    section { scroll-margin-top: 1rem; margin: 0 0 2.8rem; }
+    .section-title { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; color: var(--red); font: 700 clamp(1.55rem, 4vw, 2.15rem)/1.15 var(--hand); }
+    .num { display: inline-grid; place-items: center; flex: 0 0 35px; width: 35px; height: 35px; color: #fff; background: var(--red); border-radius: 50%; font: 700 .9rem var(--mono); transform: rotate(-4deg); }
+    h3 { margin: 1.45rem 0 .55rem; color: var(--blue); font: 700 1.25rem/1.3 var(--hand); }
+    h4 { margin: .85rem 0 .35rem; color: var(--purple); font-size: 1rem; }
+    p { margin: .35rem 0 .85rem; }
+    .lead { font-size: 1.08em; }
+    .highlight { padding: 0 .14em; background: var(--yellow); }
+    .term { padding: .08em .3em; background: rgba(0,0,0,.055); border-bottom: 2px solid var(--purple); border-radius: 3px; font: .86em var(--mono); }
+    .small { color: var(--muted); font-size: .86rem; }
+    .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
+    .fact-card { position: relative; min-height: 122px; padding: .85rem; text-align: center; background: rgba(255,255,255,.58); border: 1.5px solid rgba(36,42,45,.55); border-radius: 7px; box-shadow: 3px 3px 0 rgba(36,42,45,.1); }
+    .fact-card:nth-child(odd) { transform: rotate(-.35deg); }
+    .fact-card strong { display: block; color: var(--red); font: 700 clamp(1.55rem, 3.4vw, 2.3rem)/1 var(--hand); }
+    .fact-card span { display: block; margin-top: .45rem; font-size: .84rem; line-height: 1.3; }
+    .fact-card small { display: block; color: var(--muted); font-size: .7rem; }
+    .note-box, .fact-box, .caution-box { margin: 1rem 0; padding: .85rem 1rem; border-radius: 0 8px 8px 0; background: rgba(255,255,255,.35); }
+    .fact-box { border-left: 5px solid var(--green); }
+    .note-box { border-left: 5px solid var(--purple); }
+    .caution-box { border-left: 5px solid var(--orange); background: rgba(153,92,32,.08); }
+    .box-label { display: inline-block; margin-right: .45rem; color: inherit; font: 700 .76rem var(--mono); letter-spacing: .04em; }
+    .four-d { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; margin: 1.1rem 0; }
+    .axis { padding: .75rem; background: rgba(255,255,255,.54); border-top: 4px solid var(--blue); border-radius: 4px; }
+    .axis:nth-child(2) { border-color: var(--red); }
+    .axis:nth-child(3) { border-color: var(--purple); }
+    .axis:nth-child(4) { border-color: var(--green); }
+    .axis b { display: block; font-size: 1.08rem; }
+    .axis span { display: block; color: var(--muted); font-size: .82rem; line-height: 1.45; }
+    .flow { display: flex; align-items: stretch; gap: .35rem; margin: 1rem 0; overflow-x: auto; padding: .55rem; background: rgba(255,255,255,.32); border: 2px dashed rgba(30,98,132,.55); border-radius: 7px; }
+    .flow-item { min-width: 120px; flex: 1; padding: .6rem; text-align: center; background: #fffaf0; border: 1.5px solid var(--ink); border-radius: 5px; box-shadow: 2px 2px 0 rgba(0,0,0,.1); font-size: .86rem; }
+    .arrow { align-self: center; color: var(--red); font: 700 1.25rem var(--mono); }
+    .split { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; }
+    .card { padding: .9rem 1rem; background: rgba(255,255,255,.42); border: 1.5px solid rgba(36,42,45,.35); border-radius: 7px; }
+    .card h3 { margin-top: 0; }
+    ul.clean { margin: .35rem 0; padding-left: 1.25rem; }
+    ul.clean li { margin: .24rem 0; }
+    .formula { margin: .8rem 0; padding: .8rem 1rem; overflow-x: auto; color: #f7f1df; background: #293036; border-radius: 6px; font: .79rem/1.65 var(--mono); }
+    .benchmark-wrap { overflow-x: auto; margin: 1rem 0; border: 1px solid rgba(36,42,45,.3); border-radius: 6px; background: rgba(255,255,255,.42); }
+    table { width: 100%; min-width: 670px; border-collapse: collapse; font-size: .82rem; line-height: 1.35; }
+    th, td { padding: .62rem .7rem; text-align: left; border-bottom: 1px solid rgba(36,42,45,.18); }
+    th { color: #fff; background: var(--blue); font-family: var(--mono); font-size: .72rem; }
+    td:first-child { font-weight: 700; }
+    .best { color: var(--green); font-weight: 700; }
+    .cases { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+    .case { padding: .85rem; border: 1.5px solid rgba(36,42,45,.4); border-radius: 5px; background: rgba(255,255,255,.45); }
+    .case b { display: block; color: var(--blue); }
+    .case p { margin: .3rem 0 0; font-size: .84rem; line-height: 1.5; }
+    details { margin: .55rem 0; background: rgba(255,255,255,.42); border-left: 4px solid var(--blue); }
+    summary { padding: .7rem .9rem; cursor: pointer; color: var(--blue); font-weight: 700; }
+    details p { padding: 0 .9rem .8rem; }
+    .glossary { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem .9rem; }
+    .glossary div { padding: .65rem .8rem; background: rgba(255,255,255,.38); border-bottom: 2px solid rgba(110,76,123,.25); }
+    .glossary dt { color: var(--purple); font: 700 .84rem var(--mono); }
+    .glossary dd { margin: .2rem 0 0; font-size: .84rem; line-height: 1.45; }
+    .sources { padding-top: 1rem; border-top: 2px dashed rgba(168,59,50,.35); }
+    .sources li { margin-bottom: .45rem; overflow-wrap: anywhere; }
+    .back-top { display: inline-block; margin-top: 1rem; padding: .35rem .65rem; border: 1px solid currentColor; border-radius: 4px; text-decoration: none; font-size: .78rem; }
+    footer { color: var(--muted); font-size: .78rem; text-align: center; }
+    .write-in { opacity: 0; transform: translateY(8px); transition: opacity .5s ease, transform .5s ease; }
+    .write-in.visible { opacity: 1; transform: none; }
+    .noscript .write-in, no-js .write-in { opacity: 1; transform: none; }
+    @media (max-width: 900px) {
+      .notebook { padding: 48px 34px 64px 88px; background-image: linear-gradient(90deg, transparent 65px, var(--margin) 66px, var(--margin) 68px, transparent 69px), repeating-linear-gradient(0deg, transparent 0, transparent 34px, var(--line) 35px, var(--line) 36px); }
+      .facts, .four-d { grid-template-columns: repeat(2, 1fr); }
+      .cases { grid-template-columns: 1fr 1fr; }
+      .spiral { left: 12px; }
+    }
+    @media (max-width: 620px) {
+      body { font-size: 16px; }
+      .desk { width: calc(100% - 12px); margin: 12px auto 24px; }
+      .notebook { padding: 42px 18px 54px 50px; transform: none; background-image: linear-gradient(90deg, transparent 37px, var(--margin) 38px, var(--margin) 40px, transparent 41px), repeating-linear-gradient(0deg, transparent 0, transparent 31px, var(--line) 32px, var(--line) 33px); }
+      .spiral { left: 4px; width: 30px; }
+      .hole { width: 9px; height: 9px; }
+      .hole::after { left: -5px; top: -3px; width: 19px; height: 4px; }
+      .paperclip, .tape.two { display: none; }
+      .tape.one { left: 65px; width: 90px; }
+      .facts, .four-d, .split, .cases, .glossary { grid-template-columns: 1fr; }
+      .fact-card { min-height: auto; }
+      .flow { align-items: stretch; flex-direction: column; overflow: visible; }
+      .arrow { transform: rotate(90deg); margin: -.2rem auto; }
+      .flow-item { min-width: 0; }
+      .toc { padding: .8rem; }
+      .toc-list { display: grid; grid-template-columns: 1fr 1fr; }
+      .toc a { width: 100%; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+      .write-in { opacity: 1; transform: none; }
+    }
+    @media print {
+      body { background: #fff; font-size: 11pt; }
+      .desk { width: 100%; margin: 0; }
+      .notebook { padding: 20mm 15mm; box-shadow: none; transform: none; }
+      .spiral, .tape, .paperclip, .stain, .fold, .back-top { display: none; }
+      .write-in { opacity: 1; transform: none; }
+      a { color: inherit; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到正文</a>
+  <div class="desk" id="top">
+    <article class="notebook" aria-labelledby="page-title">
+      <div class="spiral" aria-hidden="true">
+        <i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i><i class="hole"></i>
+      </div>
+      <div class="tape one" aria-hidden="true"></div><div class="tape two" aria-hidden="true"></div>
+      <div class="paperclip" aria-hidden="true"></div><div class="stain" aria-hidden="true"></div><div class="fold" aria-hidden="true"></div>
+
+      <header class="write-in">
+        <p class="eyebrow">Paper map 01 / arXiv:2607.24653v1</p>
+        <h1 id="page-title">Kimi K3</h1>
+        <p class="subtitle">把 2.8T 参数、百万上下文与长程智能体，拆成一张能从头读懂的技术报告笔记</p>
+        <p class="meta">依据 Kimi Team 技术报告 v1，提交于 2026-07-27；整理日期 2026-07-28</p>
+        <div class="legend" aria-label="内容标记说明">
+          <span class="stamp fact">报告事实：论文明确陈述或给出数字</span>
+          <span class="stamp read">谨慎解读：为初学者提供的类比或推论</span>
+        </div>
+      </header>
+
+      <nav class="toc write-in" aria-label="笔记目录">
+        <h2>索引贴</h2>
+        <ol class="toc-list">
+          <li><a href="#snapshot">01 摘要数字</a></li><li><a href="#scaling">02 四维扩展</a></li>
+          <li><a href="#attention">03 KDA / MLA</a></li><li><a href="#attnres">04 AttnRes</a></li>
+          <li><a href="#moe">05 Stable LatentMoE</a></li><li><a href="#vision">06 视觉 / Muon</a></li>
+          <li><a href="#data">07 数据与长上下文</a></li><li><a href="#post">08 后训练</a></li>
+          <li><a href="#env">09 任务环境</a></li><li><a href="#infra">10 基础设施</a></li>
+          <li><a href="#eval">11 评测 / 成本 / 安全</a></li><li><a href="#cases">12 案例</a></li>
+          <li><a href="#limits">13 局限</a></li><li><a href="#glossary">14 术语表</a></li>
+        </ol>
+      </nav>
+
+      <main id="main">
+        <section id="snapshot" class="write-in" aria-labelledby="snapshot-title">
+          <h2 class="section-title" id="snapshot-title"><span class="num">01</span>先记住这组数</h2>
+          <div class="facts">
+            <div class="fact-card"><strong>2.78T</strong><span>总参数</span><small>常写作 2.8T</small></div>
+            <div class="fact-card"><strong>104.2B</strong><span>每 token 激活参数</span><small>稀疏 MoE，不是全量计算</small></div>
+            <div class="fact-card"><strong>1M</strong><span>最大上下文 token</span><small>训练课程扩展至一百万</small></div>
+            <div class="fact-card"><strong>896 / 16</strong><span>路由专家 / 每 token 激活</span><small>稀疏度 56</small></div>
+            <div class="fact-card"><strong>93</strong><span>主干层数</span><small>69 KDA + 24 MLA</small></div>
+            <div class="fact-card"><strong>7,168</strong><span>隐藏维度</span><small>与 K2 相同</small></div>
+            <div class="fact-card"><strong>401M</strong><span>视觉编码器参数</span><small>27 层 MoonViT-V2</small></div>
+            <div class="fact-card"><strong>约 2.5x</strong><span>相对 K2 的整体扩展效率</span><small>架构、数据、训练共同贡献</small></div>
+          </div>
+          <div class="fact-box"><span class="box-label">报告事实</span>K3 是开放权重的 3T 级稀疏多模态模型。论文称其综合表现仍落后于最强专有模型 Claude Fable 5 与 GPT-5.6 Sol，但在其评测套件中领先其余被测开放与专有模型。</div>
+          <div class="note-box"><span class="box-label">谨慎解读</span>“2.8T”更像仓库中全部工具的数量，“104.2B 激活”才更接近一次处理 token 时实际动用的工具量。它仍然很昂贵，不能把稀疏等同于小模型。</div>
+        </section>
+
+        <section id="scaling" class="write-in" aria-labelledby="scaling-title">
+          <h2 class="section-title" id="scaling-title"><span class="num">02</span>四维扩展：K3 在扩什么</h2>
+          <p class="lead">报告正文明确写了三条信息流维度，再加上原生视觉入口，可整理成一张初学者友好的“四维地图”。前三项是论文的架构表述，第四项是本文为阅读而做的组织。</p>
+          <div class="four-d">
+            <div class="axis"><b>序列 length</b><span>3 层 KDA + 1 层 Gated MLA，让信息沿 token 方向流动。</span></div>
+            <div class="axis"><b>深度 depth</b><span>AttnRes 不只接上一层，而是选择性读取更早的块表示。</span></div>
+            <div class="axis"><b>宽度 width</b><span>Stable LatentMoE 在紧凑潜空间中从 896 个专家选 16 个。</span></div>
+            <div class="axis"><b>模态 modality</b><span>图像、视频由 MoonViT-V2 编码后进入同一主干与上下文。</span></div>
+          </div>
+          <div class="flow" aria-label="K3 单个架构块示意">
+            <div class="flow-item">视觉或文本 token</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item">KDA × 3<br>局部高效长程混合</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item">Gated MLA × 1<br>全局内容交互</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item">每个注意力层后<br>Stable LatentMoE</div>
+          </div>
+          <div class="caution-box"><span class="box-label">不要误读</span>约 2.5x 是在留出 OOD 验证数据上拟合 scaling law 后，对 K2 与 K3 整体方案的“扩展效率”比较；论文没有把它归功于某一个单独模块，也不等于所有任务都快 2.5 倍。</div>
+        </section>
+
+        <section id="attention" class="write-in" aria-labelledby="attention-title">
+          <h2 class="section-title" id="attention-title"><span class="num">03</span>KDA 与 MLA：长记忆 + 定期全局复盘</h2>
+          <div class="split">
+            <div class="card">
+              <h3>KDA：固定大小的递归状态</h3>
+              <p><span class="term">Kimi Delta Attention</span> 用状态矩阵 S 逐 token 更新。它先按通道遗忘旧状态，再用 delta rule 写入新键值，避免完整 KV 缓存随序列一直增长。</p>
+              <div class="formula" role="img" aria-label="KDA 状态更新的简化公式">S_t = (I - beta k k^T) Diag(alpha) S_(t-1) + beta k v^T<br>output_t = S_t^T q_t</div>
+              <p>训练和 prefill 时按 chunk 并行、chunk 间递归。K3 把 log-decay 下界设为 <span class="term">g_min = -5</span>，使 16-token tile 的数值范围留在 BF16 可承受范围，所有因果 tile 可走 Tensor Core 稠密矩阵乘。</p>
+            </div>
+            <div class="card">
+              <h3>Gated MLA：压缩后的全局注意力</h3>
+              <p><span class="term">Multi-head Latent Attention</span> 把每个 token 的 K/V 压入低维 latent，只缓存 latent，需要时再上投影，因此比缓存完整多头 K/V 更省。</p>
+              <p>K3 的 MLA 使用 <span class="term">NoPE</span>，不显式加入位置编码；KDA 的递归门控负责位置敏感与近因信息，MLA 负责不受限制的全局内容交互。全秩输出门让每个 token 决定读取哪些输出通道。</p>
+            </div>
+          </div>
+          <div class="fact-box"><span class="box-label">报告事实</span>主干以 3:1 重复 KDA / Gated MLA，末尾额外保证一层 MLA；总计 69 层 KDA、24 层 MLA。训练中 MLA 的 attention output 保留 FP32，以校正 flash attention 的偏置舍入误差。</div>
+          <div class="note-box"><span class="box-label">谨慎解读</span>可把 KDA 想成随身压缩笔记，容量固定、持续更新；MLA 像定期翻阅整本资料。混合设计是在长上下文成本与全局精确读取之间折中，并非 KDA 完全替代标准注意力。</div>
+        </section>
+
+        <section id="attnres" class="write-in" aria-labelledby="attnres-title">
+          <h2 class="section-title" id="attnres-title"><span class="num">04</span>AttnRes：沿“层”做注意力</h2>
+          <p>普通残差连接不断把所有旧信息累加到一个状态，像把每页笔记揉成一团继续传。<span class="term">Attention Residuals</span> 为当前层学习一个 pseudo-query，对 embedding 与先前层输出做 softmax 加权，选择性取回所需深度的信息。</p>
+          <div class="flow" aria-label="Block Attention Residuals 示意">
+            <div class="flow-item">Embedding<br>b0</div><span class="arrow" aria-hidden="true">+</span>
+            <div class="flow-item">Block 1 汇总<br>b1</div><span class="arrow" aria-hidden="true">+</span>
+            <div class="flow-item">Block 2 汇总<br>b2</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item">当前层学习权重<br>alpha 后加权读取</div>
+          </div>
+          <ul class="clean">
+            <li><b>Full AttnRes：</b>每层可读所有先前层，算术可接受，但保存层输出的内存与流水线通信代价高。</li>
+            <li><b>Block AttnRes：</b>块内先求部分和，跨块只注意块表示，内存与通信从 O(Ld) 降为 O(Nd)。</li>
+            <li><b>K3 配置：</b>每块 12 层，划为 8 个块；计入 embedding 来源后共有 9 个表示块。</li>
+          </ul>
+          <div class="note-box"><span class="box-label">谨慎解读</span>这里的“注意力”不是 token 对 token，而是当前层对历史层表示。它缓解深层网络的信息瓶颈，但引入新的状态、内存访问和内核优化问题，报告为 prefill 与 decode 分别设计了融合方案。</div>
+        </section>
+
+        <section id="moe" class="write-in" aria-labelledby="moe-title">
+          <h2 class="section-title" id="moe-title"><span class="num">05</span>Stable LatentMoE：稀疏到 896 个专家仍要稳</h2>
+          <p><span class="term">LatentMoE</span> 把“公共能力”和“专门能力”拆开：2 个 shared experts 处理完整宽度 7,168；routed experts 在 3,584 的半宽 latent 中工作。这样每 token 选 16 个专家时，通信和权重流量不会按完整模型宽度膨胀。</p>
+          <div class="flow" aria-label="Stable LatentMoE 数据流">
+            <div class="flow-item">x：完整宽度</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item">下投影 W down<br>进入 latent</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item">Top-16 / 896<br>SiTU-GLU 专家</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item">聚合 u + RMSNorm<br>再上投影</div><span class="arrow" aria-hidden="true">+</span>
+            <div class="flow-item">2 个全宽<br>shared experts</div>
+          </div>
+          <div class="split">
+            <div class="card"><h3>RMSNorm：先稳住尺度</h3><p>路由聚合 u 的大小会随专家和权重变化。K3 在上投影前插入 RMSNorm，再与 full-width 共享路径合并。报告称这不仅稳定训练，也持续改善验证损失与下游评测。</p></div>
+            <div class="card"><h3>SiTU-GLU：给乘法加软上限</h3><p>SwiGLU 的两条乘法分支都无界，低精度下容易产生 outlier。SiTU 对 gate 线性因子和 up 分支分别做 beta·tanh(x/beta)，K3 取 beta1=4、beta2=25，理论幅值上界为 100，同时原点附近近似 SwiGLU。</p></div>
+          </div>
+          <h3>QB：不靠固定步长猜负载</h3>
+          <p><span class="term">Quantile Balancing</span> 仍用专家 bias 改变 Top-k 派发，但不把 bias 混入专家加权与 router 梯度。它根据每个专家 router margin 的目标分位数直接求下一步 bias，使目标负载 q = m·k/n。全局批量过大时，用每专家几百个 bin 的直方图加一次 all-reduce 估分位数；推理时冻结最终 bias。</p>
+          <div class="fact-box"><span class="box-label">报告事实</span>附录称 QB 的通信是每层每步一次 nB 个整数的 all-reduce，和 token 数 m 无关；在其配置下，不到收集原始 margins 方案成本的 1%。</div>
+        </section>
+
+        <section id="vision" class="write-in" aria-labelledby="vision-title">
+          <h2 class="section-title" id="vision-title"><span class="num">06</span>原生视觉与 Per-Head Muon</h2>
+          <div class="split">
+            <div class="card">
+              <h3>MoonViT-V2 从零一起训</h3>
+              <ul class="clean">
+                <li>文本、图像、视频从预训练一开始共同做 next-token prediction，不做后接视觉塔的对齐阶段。</li>
+                <li>27 层、约 0.4B 参数、patch size 14、12 个头；RMSNorm，线性与注意力投影去 bias。</li>
+                <li>图像与视频共享参数；空间 / 时间注意力分解，时间池化压缩视频 token。</li>
+                <li>2×2 pixel shuffle 让视觉 token 数降 4 倍，支持最高 3584×3584 输入。</li>
+              </ul>
+            </div>
+            <div class="card">
+              <h3>Per-Head Muon 分头正交化</h3>
+              <p>Muon 用 Newton-Schulz 对矩阵动量正交化。K3 不把完整 Q/K/V 当成一大块，而是沿 attention head 切分后逐头处理，避免大梯度头主导共享更新方向，使不同头的更新尺度更平衡。</p>
+              <p class="small">报告结论：大规模下训练更稳定，且高瘦的逐头矩阵让优化器开销略低。</p>
+            </div>
+          </div>
+          <div class="caution-box"><span class="box-label">事实边界</span>报告发现从零训练 MoonViT-V2 的梯度更稳，视觉评测与 SigLIP 初始化基线相当。这支持“该规模下不必依赖对比预训练作为初始化”，不代表对所有模型规模与数据预算都成立。</div>
+        </section>
+
+        <section id="data" class="write-in" aria-labelledby="data-title">
+          <h2 class="section-title" id="data-title"><span class="num">07</span>数据与长上下文课程</h2>
+          <h3>预训练数据五大块</h3>
+          <div class="four-d">
+            <div class="axis"><b>Web Text</b><span>规则、分类器质量评分、去重与消融决定采样。</span></div>
+            <div class="axis"><b>Code</b><span>含常规代码，也包含与渲染结果配对的视觉编程数据。</span></div>
+            <div class="axis"><b>Math + Knowledge</b><span>多风格、多视角改写，分块自回归生成并核验源文忠实度。</span></div>
+            <div class="axis"><b>Vision</b><span>caption、图文交错、OCR、感知、视频、SVG、3D、网页、游戏、CAD。</span></div>
+          </div>
+          <h3>不是把短文硬拼长，而是训练远距离依赖</h3>
+          <ul class="clean">
+            <li>对自然长文 / 视频做精确与模糊去重、帧感知哈希、质量过滤和结构校验，并上采样稀缺的连贯长样本。</li>
+            <li>合成长上下文时排列并拼接多模态文档和子任务，让解题所需证据散布在完整 1M 范围，防止只学局部模式。</li>
+            <li>NoPE 让扩窗不需要 RoPE 缩放或插值，但实际长程能力仍来自专门数据和课程，而非“无位置编码”自动获得。</li>
+          </ul>
+          <div class="flow" aria-label="四阶段上下文课程">
+            <div class="flow-item"><b>8K</b><br>预训练起点</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item"><b>64K</b><br>预训练后续</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item"><b>256K</b><br>cooldown</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item"><b>1M</b><br>cooldown 终点</div>
+          </div>
+          <div class="fact-box"><span class="box-label">训练配方</span>Per-Head Muon + K2 的 weight clipping + QB；cosine 学习率，1% 线性 warmup，全程 weight decay 0.1。报告为 cosine 与 WSD 分别搜最优超参后，cosine 最终 loss 更低。</div>
+        </section>
+
+        <section id="post" class="write-in" aria-labelledby="post-title">
+          <h2 class="section-title" id="post-title"><span class="num">08</span>SFT → RL → MOPD，再为部署训练</h2>
+          <div class="flow" aria-label="后训练三阶段流程">
+            <div class="flow-item"><b>SFT</b><br>智能体冷启动</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item"><b>RL</b><br>3 领域 × 3 努力度</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item"><b>9 个教师</b><br>low / high / max</div><span class="arrow" aria-hidden="true">-&gt;</span>
+            <div class="flow-item"><b>MOPD</b><br>合并为单一模型</div>
+          </div>
+          <div class="split">
+            <div class="card"><h3>SFT</h3><p>以前代 Kimi 专项模型合成轨迹，经多阶段核验和人在回路标注；XTML 统一序列化复杂工具轨迹。目标是自适应推理、精确工具调用和长程执行的高质量起点。</p></div>
+            <div class="card"><h3>RL</h3><p>三领域为一般任务、一般智能体、编码智能体；每个领域训练 low / high / max 三种 reasoning effort。按题估计初始 token 预算 b0，超出 tau·b0 的轨迹奖励置 -1，再逐阶段降低 tau 控制过度思考。</p></div>
+            <div class="card"><h3>MOPD</h3><p>学生按领域 d 与 effort e 在自己的 on-policy token 上，获得对应教师与学生 log-prob 比值形成的逐 token 稠密奖励，并截断极端信号。论文称 top-k 蒸馏在此设置中没有明显优势。</p></div>
+            <div class="card"><h3>部分 rollout</h3><p>N×K 轨迹只要 lambda 比例完成就开始优化，未完成轨迹排队到下轮继续。每 token 正则让算法容忍跨迭代产生的陈旧 off-policy 数据，减少长尾等待。</p></div>
+          </div>
+          <h3>QAT 与 EAGLE-3</h3>
+          <ul class="clean">
+            <li><b>QAT：</b>从 SFT 起覆盖整个后训练，包括 RL。占参数内存大头的 MoE routed expert 权重用 MXFP4，输入激活用 MXFP8；attention、latent 投影、shared expert、router 保持高精度。rollout 与训练同量化方案，避免 train-inference mismatch。</li>
+            <li><b>EAGLE-3：</b>把预训练 MTP 层微调为单层 draft model，冻结目标模型；融合第 1、第 4、最终 AttnRes block 的低 / 中 / 高层特征，训练展开 7 步，并直接用接受率的负对数 LK loss 优化无损投机采样。</li>
+          </ul>
+        </section>
+
+        <section id="env" class="write-in" aria-labelledby="env-title">
+          <h2 class="section-title" id="env-title"><span class="num">09</span>任务环境：奖励必须落到可验证结果</h2>
+          <div class="cases">
+            <div class="case"><b>统一白盒 harness</b><p>工具、系统提示、上下文管理、skills、memory、subagents 均可组合，动态生成 Kimi Code、Claude Code、Codex、OpenClaw、Hermes 等配置，减少对单一脚手架过拟合。</p></div>
+            <div class="case"><b>知识图谱合成</b><p>智能体递归扩展有向无环概念图，按不同粒度采样节点，检索公开材料后生成知识与编码任务，控制覆盖和细粒度。</p></div>
+            <div class="case"><b>可验证专业任务</b><p>复杂搜索、投行、数据分析、法律、视觉 STEM；沙箱内用 Python 裁剪、缩放、变换与计算，执行输出作为下一步观察。</p></div>
+            <div class="case"><b>GPU kernel</b><p>CUDA、Triton、CuTe DSL 等，覆盖 BF16 / FP8 / FP4；超过误差阈值奖励归零，速度对标专家与 roofline，并检测缓存、精度偷降等 reward hacking。</p></div>
+            <div class="case"><b>个人助理 living world</b><p>模拟 Gmail、Notion、Slack、Canvas，多应用、多天、相互依赖事件；单次 rollout 可达数千工具调用与数百万上下文 token。</p></div>
+            <div class="case"><b>AET 与 WebDev</b><p>Autonomous Execution Task 只给目标、约束、工具和独立 verifier；公共 / 隐藏 verifier 隔离。WebDev 再加构建、功能、结构、像素与模型评审。</p></div>
+          </div>
+          <div class="note-box"><span class="box-label">谨慎解读</span>后训练重点不只是“会答题”，而是把计划、操作、反馈、恢复、终止放进可持续的环境循环。可验证终态比模型自称“完成了”更可靠，但 verifier 本身仍可能有覆盖盲区。</div>
+        </section>
+
+        <section id="infra" class="write-in" aria-labelledby="infra-title">
+          <h2 class="section-title" id="infra-title"><span class="num">10</span>训练、RL 与服务基础设施</h2>
+          <h3>训练：让 3T 稀疏多模态跑得动</h3>
+          <div class="split">
+            <div class="card"><h4>KDA 协同设计</h4><p>FlashKDA 让 token 并行阶段与跨 chunk 状态传播重叠；KDA Context Parallelism 每 rank 计算局部转移 M 与从零生成状态 S~，一次固定大小 all-gather 后按结合律前缀扫描，获得线性计算扩展。</p></div>
+            <div class="card"><h4>MoonEP 完美负载</h4><p>动态冗余专家保证每 rank 精确接收 S×K token；每 rank 预留最多 E/R 个冗余专家即可保证可行。静态 shape 去掉逐层 host 同步，zero-copy 派发缓冲固定为 S×K。</p></div>
+            <div class="card"><h4>内存管理</h4><p>统一 activation manager 按 tensor 组合重算、FP8 量化、CPU / 远程卸载；Pipeline ZeRO-2 分片梯度并放 CPU；P2P Muon 只取本 rank 所属参数分片，不做全参数 all-gather。</p></div>
+            <div class="card"><h4>隐藏视觉开销</h4><p>大图按 patch 跨设备动态 CP；多个图像分入子 CP 组做均衡。ViT forward / backward 拆开并塞入 interleaved 1F1B pipeline bubbles，报告称大部分视觉编码计算可被隐藏。</p></div>
+          </div>
+          <h3>1M Agentic RL：状态不能丢</h3>
+          <ul class="clean">
+            <li>co-located 训练 / rollout 使每个实验控制在数百 GPU；外部 CPU DRAM KV pool 只在 GPU 驱逐可复用前缀时 write-back，KDA state 与 MLA KV 同生命周期。</li>
+            <li>根据活跃数、排队数、KV 利用率自动节流；训练后把权重与优化器状态卸到 NVMe，为 rollout 前缀池腾 DRAM。</li>
+            <li><span class="term">AgentENV</span> 用 Firecracker microVM；增量 checkpoint / resume 最低 133ms / 49ms，pause 时可释放等待推理所占资源，真实负载内存超配最高 6.5x。</li>
+            <li>训练与评测累计创建 <span class="highlight">51,219,741 个 sandbox</span>，来自 1,505,678 个镜像。</li>
+          </ul>
+          <h3>服务：两种缓存一起管</h3>
+          <p>KDA state 固定大小，MLA KV 随序列增长。服务端把两者装进统一 paged pool，但将 512-token 细 hash block 与 1,024 至 6,144-token 物理块解耦，只在稀疏 hash 边界保存 KDA checkpoint。命中必须同时拥有 MLA prefix 与所有 KDA group checkpoint。</p>
+          <div class="fact-box"><span class="box-label">典型流量</span>报告给出的 1M 编码请求常有 400K prefix、只新增 4K prefill；命中缓存比 miss 便宜多个数量级。集群用 session cache affinity + 双集群一致性哈希容灾，并按请求类别分配预算，避免百万 token 突发饿死 2K 以下短请求。</div>
+        </section>
+
+        <section id="eval" class="write-in" aria-labelledby="eval-title">
+          <h2 class="section-title" id="eval-title"><span class="num">11</span>主要评测、成本与网络安全</h2>
+          <p class="small">K3 结果通常为 max effort、temperature 1.0；单步推理 / 知识与无工具视觉 top-p 0.95，智能体 top-p 1.0。不同模型可能使用 Kimi Code、Claude Code 或 Codex，第三方数字也来自不同日期与设置，横向比较应结合脚注。</p>
+          <div class="benchmark-wrap" role="region" aria-label="Kimi K3 代表性评测结果，可横向滚动" tabindex="0">
+            <table>
+              <thead><tr><th>能力</th><th>评测</th><th>K3</th><th>报告中的位置 / 对比</th></tr></thead>
+              <tbody>
+                <tr><td>知识推理</td><td>GPQA Diamond</td><td>93.5%</td><td>GPT-5.6 Sol 94.1%；接近前沿</td></tr>
+                <tr><td>研究推理</td><td>HLE-Full</td><td>43.5 / 56.0%</td><td>无工具 / 有工具，落后两款最强专有模型</td></tr>
+                <tr><td>编码</td><td>ProgramBench</td><td class="best">77.8%</td><td>表内最高</td></tr>
+                <tr><td>编码</td><td>Terminal-Bench 2.1</td><td>88.3%</td><td>GPT-5.6 Sol 88.8%</td></tr>
+                <tr><td>长程编码</td><td>FrontierSWE</td><td>81.2%</td><td>第二，Fable 5 为 86.6%</td></tr>
+                <tr><td>智能体</td><td>BrowseComp</td><td class="best">91.2%</td><td>表内最高；1M 无压缩为 90.4%</td></tr>
+                <tr><td>智能体</td><td>MCPMark-Verified</td><td class="best">94.5%</td><td>表内最高</td></tr>
+                <tr><td>视觉</td><td>OmniDocBench</td><td class="best">91.1%</td><td>表内最高</td></tr>
+                <tr><td>视觉推理</td><td>Math-Vision</td><td>94.3 / 97.8%</td><td>无 / 有 Python 工具</td></tr>
+                <tr><td>第三方</td><td>AA Intelligence Index 4.1</td><td>57.1</td><td>580 模型中第 4</td></tr>
+                <tr><td>第三方</td><td>Vals Index</td><td>74.7%</td><td>39 模型中第 2</td></tr>
+                <tr><td>人类偏好</td><td>WebDev Arena</td><td class="best">1,678 Elo</td><td>99 模型中第 1，报告截点 2026-07-23</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <h3>成本效率：有代表性，不是统一会计口径</h3>
+          <ul class="clean">
+            <li>Kimi Code Bench 2.0：比 Claude Fable 5 低 4.0 分，成本为其 38%；K3 high effort 约用三分之一成本达到 Claude Opus 4.8 max 分数。</li>
+            <li>BrowseComp：91.2%，每题 2.03 美元；约为 GPT-5.6 Sol 成本一半，比 max effort Claude 模型便宜一个数量级。</li>
+            <li>GDPval-AA v2：距 GPT-5.6 Sol 小于 50 Elo，成本低 13%；比 Claude Fable 5 便宜 2.6x。AA-Briefcase 第二名，约为 Fable 5 一半成本。</li>
+          </ul>
+          <div class="caution-box"><span class="box-label">谨慎解读</span>这些成本有内部实测、公开图表和按 2026-07-23 API 单价推算三种来源，harness 也不同。能说明 K3 位于或接近这些套件的成本前沿，不能直接推导任意生产工作负载的总拥有成本。</div>
+          <h3>网络安全：能力与风险同时上升</h3>
+          <div class="split">
+            <div class="card"><h4>Tier 1 漏洞发现</h4><p>数十个广泛部署系统中产生数百候选；经人工复核者约 70% 为真实漏洞，包括 6 个项目中的 16 个此前未知漏洞。论文举出 Linux 内核远程堆越界写和 RDMA 权限检查缺失两例。</p></div>
+            <div class="card"><h4>Tier 2 端到端利用</h4><p>内部 36 题中 K3 解出 14 题（38.9%），GLM-5.2 为 8 题（22.2%）；K3 的 14 个成功中 10 个来自 user-space。全套均经人类验证可解，估计需 540 专家小时。</p></div>
+          </div>
+          <p>UK AISI 与 NIST CAISI 独立评估：ExploitBench 32% 对 GLM-5.2 的 24%；32 步模拟企业网络推进 17 步对 11 步；但 41 个端到端任务中任意代码执行为 <b>0 / 41</b>。报告指出困难集中在利用链最后一段、缓解措施下策略选择、无效调试循环和提交前验证。</p>
+          <div class="caution-box"><span class="box-label">风险说明</span>论文称这是当前版本和覆盖范围下的能力下界。由于前沿模型常拒绝网络安全任务，部分对比不可做；“更低评测分”也不应被解释为没有滥用风险。</div>
+        </section>
+
+        <section id="cases" class="write-in" aria-labelledby="cases-title">
+          <h2 class="section-title" id="cases-title"><span class="num">12</span>报告案例：看“长程闭环”而非单次回答</h2>
+          <div class="cases">
+            <div class="case"><b>内核优化</b><p>每题最多 24 小时。AttnRes 从 283.6ms 降到 114.4ms；DSA / KDA 运行时分别降 55.1% / 73.6%；MLA 达峰值 TFLOPS 一半以上。</p></div>
+            <div class="case"><b>MiniTriton 编译器</b><p>从 Python tile DSL、MLIR 标注优化到 PTX 与 runtime；L20 上 tensor-core matmul 大 shape 达实测 roofline 约 90%，并可端到端训练 GPT。</p></div>
+            <div class="case"><b>推理芯片</b><p>单次 48 小时自主运行，Nangate45；4mm²、100MHz、RTL 模拟超过 8,700 token/s，1.46M 标准单元与 0.277MiB SRAM。</p></div>
+            <div class="case"><b>I-Love-Q 科研复现</b><p>约 2 小时读 20+ 论文、跑 300+ 状态方程、写 3,000+ 行 Python 和交互仪表盘；报告对比经验研究者通常需 1 至 2 周。</p></div>
+            <div class="case"><b>42 年 AI ASIC 研究</b><p>120+ 轮改进、2,800+ 次 web 搜索、1,100+ 次终端查询，覆盖 87 份季报、99 个原始 PDF、11,000+ 页。</p></div>
+            <div class="case"><b>引力波与视频</b><p>20+ 并发 subagents 分析 391 个 GWTC-5 事件；另从 56 个素材剪辑 teaser，做逐帧节拍、音频与多轮修改。</p></div>
+          </div>
+          <div class="note-box"><span class="box-label">谨慎解读</span>案例展示可能达到的上限，往往给了沙箱、工具、时间和明确目标，不是随机请求的平均成功率；芯片数字来自 RTL simulation，不等同于已流片实测。</div>
+        </section>
+
+        <section id="limits" class="write-in" aria-labelledby="limits-title">
+          <h2 class="section-title" id="limits-title"><span class="num">13</span>局限：报告结论与部署警戒线</h2>
+          <details open>
+            <summary>对 thinking history 敏感</summary>
+            <p>K3 以保留完整思考历史的模式训练。harness 若没有原样回传历史 thinking，或会话中途从另一模型切换到 K3，生成质量可能高度不稳定。报告建议使用已验证兼容的 Kimi Code，避免中途切换。</p>
+          </details>
+          <details open>
+            <summary>可能过度主动</summary>
+            <p>长程困难任务训练使它遇到小问题或意图含糊时，可能替用户做意外决定。边界严格的应用应在 system prompt 或 AGENTS.md 明确许可、禁止项、确认点和终止条件。</p>
+          </details>
+          <details open>
+            <summary>体验与最高前沿仍有差距</summary>
+            <p>报告明确承认综合用户体验落后 Claude Fable 5 和 GPT-5.6 Sol；HLE、CritPt、部分 computer-use、MIRA、24/7 Claw、Agent Behavior 与 agentic vision 也暴露差距。</p>
+          </details>
+          <details>
+            <summary>评测可比性和披露边界</summary>
+            <p>不同 harness、fallback、cyber guard、内部题集、模型评委与日期会影响结果。训练语料规模、总 FLOPs、硬件总量、训练能耗等并未在正文给出，不能从参数量自行补算为“论文事实”。</p>
+          </details>
+        </section>
+
+        <section id="glossary" class="write-in" aria-labelledby="glossary-title">
+          <h2 class="section-title" id="glossary-title"><span class="num">14</span>术语表：读完能复述</h2>
+          <dl class="glossary">
+            <div><dt>MoE</dt><dd>Mixture of Experts。每个 token 只路由到少量专家，以总参数换取稀疏计算。</dd></div>
+            <div><dt>KDA</dt><dd>Kimi Delta Attention。用带遗忘门的固定大小递归状态进行序列混合。</dd></div>
+            <div><dt>MLA</dt><dd>Multi-head Latent Attention。压缩 K/V 缓存但保留全局 softmax 注意力。</dd></div>
+            <div><dt>NoPE</dt><dd>No Position Encoding。MLA 不显式加位置编码，KDA 门控隐式承载位置信息。</dd></div>
+            <div><dt>AttnRes</dt><dd>Attention Residuals。当前层对先前层或块表示做选择性加权读取。</dd></div>
+            <div><dt>LatentMoE</dt><dd>路由专家在低维 latent 中工作，共享专家保留完整宽度。</dd></div>
+            <div><dt>RMSNorm</dt><dd>按均方根归一化，稳定表示尺度；K3 用于 KDA、AttnRes、MoE 和 ViT 等位置。</dd></div>
+            <div><dt>SiTU-GLU</dt><dd>Sigmoid Tanh Unit GLU。用平滑 tanh cap 限制乘法分支的极端激活。</dd></div>
+            <div><dt>QB</dt><dd>Quantile Balancing。按 router margin 分位数更新专家 bias，使负载接近目标。</dd></div>
+            <div><dt>Muon</dt><dd>对矩阵参数的动量做 Newton-Schulz 正交化的优化器；K3 的 Q/K/V 逐 head 处理。</dd></div>
+            <div><dt>SFT / RL</dt><dd>监督微调提供冷启动；强化学习通过环境奖励强化推理与执行策略。</dd></div>
+            <div><dt>MOPD</dt><dd>Multi-Teacher On-Policy Distillation。将 9 个领域 / 努力度专家蒸馏进单一模型。</dd></div>
+            <div><dt>QAT</dt><dd>Quantization-Aware Training。训练时模拟量化误差，使低精度部署损失更可控。</dd></div>
+            <div><dt>MTP / EAGLE-3</dt><dd>多 token 预测层可改造成 draft model，用投机解码减少目标模型逐 token 开销。</dd></div>
+            <div><dt>Prefill / Decode</dt><dd>先处理已有上下文建立缓存，再逐 token 生成输出；两阶段瓶颈不同。</dd></div>
+            <div><dt>Context Parallelism</dt><dd>沿序列切分到多个计算单元；KCP 交换固定大小 KDA 状态片段。</dd></div>
+            <div><dt>EP / PP / DP</dt><dd>专家并行、流水线并行、数据并行，是 3T 级训练的不同切分轴。</dd></div>
+            <div><dt>Agent harness</dt><dd>包住模型的工具接口、系统提示、上下文管理、记忆与 subagent 运行框架。</dd></div>
+          </dl>
+        </section>
+
+        <section class="sources write-in" aria-labelledby="sources-title">
+          <h2 class="section-title" id="sources-title"><span class="num">15</span>来源与读法</h2>
+          <ol>
+            <li>Kimi Team. <a href="https://arxiv.org/abs/2607.24653" target="_blank" rel="noreferrer">Kimi K3: Open Frontier Intelligence</a>, arXiv:2607.24653v1, 2026-07-27。本文数字以报告正文与 TeX 表格为主。</li>
+            <li><a href="https://www.kimi.com/blog/kimi-k3" target="_blank" rel="noreferrer">Kimi K3 技术博客</a>。用于核对产品发布、API 定价与案例叙述；若与报告粒度不同，正文优先采用报告数字。</li>
+            <li>所有“报告事实”均尽量保持原始限定条件；“谨慎解读”是降低阅读门槛的类比，不是作者原话。百分比默认沿用各 benchmark 自身指标，不应跨表直接相加或平均。</li>
+          </ol>
+          <a class="back-top" href="#top">返回页首</a>
+        </section>
+      </main>
+
+      <footer>
+        <p>单页学习笔记。离线时使用系统手写与楷体 fallback；正文、图解、样式和脚本均内联。</p>
+      </footer>
+    </article>
+  </div>
+  <noscript><style>.write-in{opacity:1;transform:none}</style></noscript>
+  <script>
+    (() => {
+      const items = document.querySelectorAll('.write-in');
+      if (!('IntersectionObserver' in window) || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        items.forEach((item) => item.classList.add('visible'));
+        return;
+      }
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
+      items.forEach((item, index) => {
+        item.style.transitionDelay = `${Math.min(index * 35, 180)}ms`;
+        observer.observe(item);
+      });
+    })();
+  </script>
+</body>
+</html>

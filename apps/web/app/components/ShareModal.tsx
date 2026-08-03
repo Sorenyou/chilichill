@@ -1,103 +1,30 @@
-﻿'use client';
+'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { PALETTES, type Message } from '@chili/shared';
+import type { Message } from '@chili/shared';
 import { useApp } from '../store';
+import { renderShareCard, type ShareCardData } from '@/lib/shareCard';
 
 type ShareMode = 'page' | 'footprint' | 'message';
-
-const CARD_W = 1080;
-const CARD_H = 1440;
-
-/* ===== 像素风二维码生成（可用作占位，真实QR需引入库） ===== */
-function drawPixelQR(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, seed: string) {
-  const cells = 25;
-  const cell = size / cells;
-  ctx.fillStyle = '#0a0518';
-  ctx.fillRect(x, y, size, size);
-  let hash = 0;
-  for (let i = 0; i < seed.length; i++) hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
-  const rng = () => { hash = ((hash * 16807) % 2147483647); return (hash & 0x7fffffff) / 0x7fffffff; };
-  ctx.fillStyle = '#f4e7d3';
-  for (let i = 0; i < cells; i++) for (let j = 0; j < cells; j++) if (rng() > 0.48) ctx.fillRect(x + i * cell, y + j * cell, cell, cell);
-  const drawFinder = (ox: number, oy: number) => {
-    ctx.fillStyle = '#0a0518'; ctx.fillRect(x + ox * cell, y + oy * cell, 7 * cell, 7 * cell);
-    ctx.fillStyle = '#f4e7d3'; ctx.fillRect(x + (ox + 1) * cell, y + (oy + 1) * cell, 5 * cell, 5 * cell);
-    ctx.fillStyle = '#0a0518'; ctx.fillRect(x + (ox + 2) * cell, y + (oy + 2) * cell, 3 * cell, 3 * cell);
-  };
-  drawFinder(0, 0); drawFinder(cells - 7, 0); drawFinder(0, cells - 7);
-  ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.strokeRect(x, y, size, size);
-}
-
-/* ===== 文字自动换行 ===== */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lineH: number, maxLines: number) {
-  const chars = [...text]; let line = ''; let lines = 0;
-  for (const c of chars) {
-    const next = line + c;
-    if (ctx.measureText(next).width > maxW && line) {
-      ctx.fillText(line, x, y + lines * lineH); line = c; lines++;
-      if (lines >= maxLines) return;
-    } else { line = next; }
-  }
-  if (line && lines < maxLines) ctx.fillText(line, x, y + lines * lineH);
-}
-
-/* ===== 测量文字换行后的实际行数 ===== */
-function measureWrapLines(ctx: CanvasRenderingContext2D, text: string, maxW: number, lineH: number, maxLines: number): number {
-  const chars = [...text]; let line = ''; let lines = 0;
-  for (const c of chars) {
-    const next = line + c;
-    if (ctx.measureText(next).width > maxW && line) {
-      line = c; lines++;
-      if (lines >= maxLines) return maxLines;
-    } else { line = next; }
-  }
-  if (line && lines < maxLines) lines++;
-  return Math.max(1, lines);
-}
-
-/* ===== 画一个像素风的复古游戏机外壳 ===== */
-function drawRetroFrame(ctx: CanvasRenderingContext2D) {
-  const pad = 48; const w = CARD_W - pad * 2; const h = CARD_H - pad * 2;
-  ctx.fillStyle = '#0e081c'; ctx.fillRect(pad, pad, w, h);
-  const inset = 12;
-  ctx.fillStyle = '#160f2d'; ctx.fillRect(pad + inset, pad + inset, w - inset * 2, h - inset * 2);
-  // Corner accents
-  ctx.fillStyle = '#ffd23f';
-  [[pad + 8, pad + 8], [pad + w - 20, pad + 8], [pad + 8, pad + h - 20], [pad + w - 20, pad + h - 20]].forEach(([cx, cy]) => ctx.fillRect(cx, cy, 12, 12));
-  // Scan lines
-  ctx.globalAlpha = 0.06;
-  for (let y = pad + inset; y < pad + h - inset; y += 4) { ctx.fillStyle = '#000'; ctx.fillRect(pad + inset, y, w - inset * 2, 1); }
-  ctx.globalAlpha = 1;
-}
-
-/* ===== 画一条像素风装饰分隔线 ===== */
-function drawPixelDivider(ctx: CanvasRenderingContext2D, y: number, color: string) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  const dashLen = 8; const gapLen = 6;
-  for (let x = 90; x < CARD_W - 90; x += dashLen + gapLen) {
-    ctx.fillRect(x, y, dashLen, 2);
-  }
-}
-
-/* ===== 画星星评分 ===== */
-function drawStars(ctx: CanvasRenderingContext2D, rating: number, x: number, y: number) {
-  ctx.font = '32px "Press Start 2P", monospace';
-  const filled = '★'.repeat(rating);
-  const empty = '☆'.repeat(5 - rating);
-  ctx.fillStyle = '#ffd23f';
-  ctx.fillText(filled, x, y);
-  ctx.fillStyle = 'rgba(244,231,211,0.3)';
-  ctx.fillText(empty, x + ctx.measureText(filled).width, y);
-}
 
 /* ===== 下载 ===== */
 function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
   const link = document.createElement('a');
   link.href = canvas.toDataURL('image/png');
   link.download = filename;
+  document.body.appendChild(link);
   link.click();
+  link.remove();
+}
+
+/* ===== 统计用户在留言与回复中的日记总数 ===== */
+function countUserMessages(messages: Message[], username: string): number {
+  let count = 0;
+  for (const message of messages) {
+    if (message.author === username) count++;
+    if (message.replies?.length) count += countUserMessages(message.replies, username);
+  }
+  return count;
 }
 
 export function ShareModal() {
@@ -108,7 +35,7 @@ export function ShareModal() {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const footprintStations = stations.filter((s) => footprintStationIds.includes(s.id));
-  const myMessages = messages.filter((m) => user && m.author === user.username);
+  const myMessagesCount = user ? countUserMessages(messages, user.username) : 0;
 
   useEffect(() => { setMode(shareMode); }, [shareMode]);
 
@@ -131,190 +58,74 @@ export function ShareModal() {
     ? `${shareTargetMessage.cityTag} · ${new Date(shareTargetMessage.createdAt).toLocaleDateString('zh-CN')}`
     : mode === 'page'
       ? `${messages.length} 篇现场日记`
-      : `点亮 ${footprintStations.length} 座城市 · 发了 ${myMessages.length} 篇日记`;
+      : `点亮 ${footprintStations.length} 座城市 · 发了 ${myMessagesCount} 篇日记`;
 
   /* ===== 生成 PNG ===== */
   const generate = async () => {
     if (generating) return;
     setGenerating(true);
-    await document.fonts.ready;
     try {
-      await document.fonts.load('900 48px "Press Start 2P"');
-      await document.fonts.load('24px "Press Start 2P"');
-    } catch { /* ignore */ }
+      await document.fonts.ready;
+      try {
+        await document.fonts.load('400 44px "Press Start 2P"');
+        await document.fonts.load('400 34px "ZCOOL KuaiLe"');
+      } catch { /* ignore */ }
 
-    const canvas = document.createElement('canvas');
-    canvas.width = CARD_W; canvas.height = CARD_H;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) { setGenerating(false); return; }
+      const canvas = document.createElement('canvas');
+      canvas.width = 1080;
+      canvas.height = 1440;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('canvas 2d context unavailable');
 
-    // Background
-    ctx.fillStyle = '#0e081c'; ctx.fillRect(0, 0, CARD_W, CARD_H);
-    drawRetroFrame(ctx);
-    const cx = CARD_W / 2;
-    let curY = 130;
+      const data: ShareCardData = mode === 'message' && shareTargetMessage
+        ? {
+            mode: 'message',
+            message: {
+              author: shareTargetMessage.author,
+              avatar: shareTargetMessage.avatar,
+              mood: shareTargetMessage.mood,
+              rating: shareTargetMessage.rating,
+              body: shareTargetMessage.body,
+              cityTag: shareTargetMessage.cityTag,
+              createdAt: shareTargetMessage.createdAt,
+              imagesCount: Math.max(shareTargetMessage.images?.length ?? 0, shareTargetMessage.image ? 1 : 0),
+              likesCount: shareTargetMessage.likesCount ?? 0,
+              heartsCount: shareTargetMessage.heartsCount ?? 0,
+            },
+          }
+        : mode === 'page'
+          ? {
+              mode: 'page',
+              title,
+              subtitle: wallMode === 'all'
+                ? '全部城市 / 全部场次'
+                : `${curStation?.venue ?? ''} / ${curStation?.date ?? ''}`,
+              count: messages.length,
+              stations: wallMode === 'all'
+                ? stations.slice(0, 9).map((s) => ({ cityName: s.cityName, palette: s.palette }))
+                : curStation
+                  ? [{ cityName: curStation.cityName, palette: curStation.palette }]
+                  : [],
+            }
+          : {
+              mode: 'footprint',
+              title,
+              subtitle: `点亮 ${footprintStations.length} 座城市 · 发了 ${myMessagesCount} 篇日记`,
+              cityCount: footprintStations.length,
+              diaryCount: myMessagesCount,
+              stations: footprintStations.map((s) => ({ cityName: s.cityName, palette: s.palette })),
+            };
 
-    // === BRAND ===
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#ffd23f';
-    ctx.font = '900 52px "Press Start 2P", "ZCOOL KuaiLe", sans-serif';
-    ctx.fillText('CHILICHILL', cx, curY);
-    ctx.font = '24px "Press Start 2P", "ZCOOL KuaiLe", sans-serif';
-    ctx.fillStyle = '#37d7e2';
-    const subTitle = mode === 'message' ? 'FIELD NOTE' : mode === 'page' ? 'TOUR DIARY' : 'MY FOOTPRINT';
-    ctx.fillText(subTitle, cx, curY + 48);
-    ctx.textAlign = 'left';
-    curY += 100;
-
-    // === DIVIDER ===
-    drawPixelDivider(ctx, curY, 'rgba(244,231,211,0.2)');
-    curY += 30;
-
-    if (mode === 'message' && shareTargetMessage) {
-      // ===== 单条日记分享卡 =====
-      const msg = shareTargetMessage;
-
-      // Author badge
-      ctx.fillStyle = '#f4e7d3';
-      ctx.font = '28px "Press Start 2P", sans-serif';
-      ctx.fillText(`@${msg.author}`, 90, curY);
-      curY += 40;
-
-      // Mood + Rating
-      ctx.fillStyle = PALETTES[typeof msg.mood === 'string' && msg.mood.startsWith('#') ? 'hot' : 'cool'];
-      ctx.font = '900 42px "ZCOOL KuaiLe", sans-serif';
-      ctx.fillText(`${msg.mood}`, 90, curY);
-      drawStars(ctx, msg.rating, 90 + ctx.measureText(`${msg.mood} `).width + 20, curY);
-      curY += 60;
-
-      // 正文 —— 精确计算行数 + 笔记本横线背景
-      const bodyFontSize = 32;
-      const bodyLineH = 56;
-      const bodyMaxW = CARD_W - 180;
-      const bodyMaxLines = 12;
-      ctx.font = '900 ' + bodyFontSize + 'px "ZCOOL KuaiLe", "Press Start 2P", sans-serif';
-      const bodyLines = measureWrapLines(ctx, msg.body, bodyMaxW, bodyLineH, bodyMaxLines);
-      // 先画文字（前景）
-      ctx.fillStyle = '#f4e7d3';
-      const textBaseY = curY + 6; // 文字基线微调
-      wrapText(ctx, msg.body, 92, textBaseY, bodyMaxW, bodyLineH, bodyMaxLines);
-      // 后画横线（在文字下方，作为背景分隔线）
-      ctx.globalAlpha = 0.14;
-      ctx.strokeStyle = '#ffd23f';
-      ctx.lineWidth = 1;
-      for (let ln = 0; ln < bodyLines; ln++) {
-        const ly = textBaseY + ln * bodyLineH + bodyFontSize * 0.82; // 横线画在文字底部下方
-        if (ly > CARD_H - 340) break;
-        ctx.beginPath();
-        ctx.moveTo(90, ly);
-        ctx.lineTo(CARD_W - 90, ly);
-        ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      curY += bodyLines * bodyLineH + 20;
-
-      // Image thumbnail indicator
-      if ((msg.images?.length ?? 0) > 0 || msg.image) {
-        ctx.fillStyle = '#ffd23f';
-        ctx.font = '20px "Press Start 2P", sans-serif';
-        ctx.fillText(`📷 ${msg.images?.length ?? 1} 张现场照片`, 90, curY);
-        curY += 40;
-      }
-
-      // Reactions
-      ctx.fillStyle = '#7cf28a';
-      ctx.font = '24px "Press Start 2P", sans-serif';
-      ctx.fillText(`👍 ${msg.likesCount ?? 0}    ❤️ ${msg.heartsCount ?? 0}`, 90, curY);
-      curY += 50;
-
-      // Date + City
-      ctx.fillStyle = '#b1a0cc';
-      ctx.font = '24px "Press Start 2P", sans-serif';
-      const dateStr = new Date(msg.createdAt).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-      ctx.fillText(`${dateStr} · ${msg.cityTag}`, 90, curY);
-      curY += 50;
-
-    } else {
-      // ===== 页面 / 足迹 分享卡 =====
-      // Big number badge
-      const bigNumber = mode === 'page'
-        ? String(messages.length)
-        : mode === 'footprint'
-          ? String(myMessages.length)
-          : '0';
-      ctx.fillStyle = '#ffd23f';
-      ctx.font = '900 120px "Press Start 2P", sans-serif';
-      const numW = ctx.measureText(bigNumber).width;
-      ctx.fillText(bigNumber, cx - numW / 2, curY + 80);
-
-      ctx.fillStyle = '#f4e7d3';
-      ctx.font = '28px "Press Start 2P", sans-serif';
-      const unit = mode === 'page' ? '篇日记' : mode === 'footprint' ? '篇日记' : '';
-      const unitW = ctx.measureText(unit).width;
-      ctx.fillText(unit, cx - unitW / 2, curY + 130);
-      curY += 160;
-
-      // Stats line
-      ctx.fillStyle = '#7cf28a';
-      ctx.font = '900 36px "ZCOOL KuaiLe", "Press Start 2P", sans-serif';
-      wrapText(ctx, countText, 90, curY, CARD_W - 180, 48, 2);
-      curY += 80;
-
-      // City text
-      ctx.fillStyle = '#b1a0cc';
-      ctx.font = '28px "ZCOOL KuaiLe", "Press Start 2P", sans-serif';
-      const cityText = mode === 'page'
-        ? (wallMode === 'all' ? '全部城市 / 全部场次' : `${curStation?.venue ?? ''} / ${curStation?.date ?? ''}`)
-        : (footprintStations.map((s) => s.cityName).join(' / ') || '写下第一篇日记后点亮城市');
-      wrapText(ctx, cityText, 90, curY, CARD_W - 180, 42, 3);
-      curY += 60;
-
-      // City Dots Grid
-      const dots = mode === 'footprint' ? footprintStations : (curStation ? [curStation] : stations.slice(0, 6));
-      const dotColors = ['#ff4d6d', '#37d7e2', '#ffd23f', '#7cf28a', '#b388ff', '#ff9f43'];
-      const startX = 90;
-      const colW = (CARD_W - 180 - 40) / 4;
-      dots.slice(0, 12).forEach((station, index) => {
-        const col = index % 4;
-        const row = Math.floor(index / 4);
-        const dx = startX + col * colW;
-        const dy = curY + row * 90;
-        ctx.fillStyle = dotColors[index % dotColors.length];
-        ctx.fillRect(dx, dy, 36, 36);
-        ctx.fillStyle = 'rgba(10,5,24,0.5)';
-        ctx.fillRect(dx + 4, dy + 4, 36, 36);
-        ctx.fillStyle = dotColors[index % dotColors.length];
-        ctx.fillRect(dx, dy, 36, 36);
-        ctx.fillStyle = '#f4e7d3';
-        ctx.font = '24px "ZCOOL KuaiLe", sans-serif';
-        ctx.fillText(station.cityName, dx + 50, dy + 28);
-      });
-      curY += Math.ceil(Math.min(dots.length, 12) / 4) * 90 + 20;
+      renderShareCard(ctx, data);
+      downloadCanvas(canvas, mode === 'message' ? 'chilichill-note-card.png' : mode === 'footprint' ? 'chilichill-footprint-card.png' : 'chilichill-share-card.png');
+      showToast('分享卡已生成');
+    } catch (error) {
+      console.error('生成分享卡失败', error);
+      showToast('分享卡生成失败，请重试');
+    } finally {
+      setGenerating(false);
     }
-
-    // === QR Code ===
-    const qrY = CARD_H - 260;
-    drawPixelQR(ctx, 90, qrY, 180, seedForQR(mode, user?.username, shareTargetMessage?.id));
-    ctx.fillStyle = '#b1a0cc';
-    ctx.font = '20px "Press Start 2P", "ZCOOL KuaiLe", sans-serif';
-    ctx.fillText('扫码查看', 300, qrY + 60);
-    ctx.fillText('www.707o.cc', 300, qrY + 100);
-
-    // === Footer ===
-    ctx.fillStyle = 'rgba(177,160,204,0.4)';
-    ctx.font = '16px "Press Start 2P", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('CHILICHILL TOUR DIARY', cx, CARD_H - 60);
-    ctx.textAlign = 'left';
-
-    downloadCanvas(canvas, mode === 'message' ? 'chilichill-note-card.png' : mode === 'footprint' ? 'chilichill-footprint-card.png' : 'chilichill-share-card.png');
-    showToast('分享卡已生成');
-    setGenerating(false);
   };
-
-  function seedForQR(mode: string, username?: string, messageId?: string | null) {
-    return `${mode}-${username ?? 'guest'}-${messageId ?? Date.now()}`;
-  }
 
   return (
     <div className={`modal ${closingRef.current ? 'closing' : 'active'}`} id="share-modal" onClick={handleClose}>

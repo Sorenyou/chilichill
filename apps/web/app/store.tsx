@@ -380,7 +380,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toast, showToast, submitMessage, replyTarget, openReplyComposer, openAdmin, footprintStationIds,
     shareMode, shareTargetMessage, openShareCard: (mode: 'page' | 'footprint' | 'message', message?: Message | null) => {
       setShareMode(mode);
-      if (message) setShareTargetMessage(message);
+      setShareTargetMessage(mode === 'message' ? (message ?? null) : null);
       setShareOpen(true);
     }, closeShareCard: () => {
       setShareOpen(false);

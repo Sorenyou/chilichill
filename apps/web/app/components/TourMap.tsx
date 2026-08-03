@@ -159,7 +159,7 @@ function markerPosition(station: Station, provinceCenters: Record<string, Projec
 }
 
 export function TourMap() {
-  const { stations, curStation, openWall, openCityWall, openAllWall, openAdmin, user, logout, setLoginOpen, setShareOpen, screen } = useApp();
+  const { stations, curStation, openWall, openCityWall, openAllWall, openAdmin, user, logout, setLoginOpen, openShareCard, screen } = useApp();
   const [china, setChina] = useState<ChinaGeoJson | null>(null);
   const [cityDrawerOpen, setCityDrawerOpen] = useState(false);
   const desktopMap = useDesktopLayout();
@@ -213,7 +213,7 @@ export function TourMap() {
         <div className="wordmark">ChiliChill<small>巡演日记</small></div>
         <div className="map-actions">
           <button className="ico-btn city-menu-btn" onClick={() => setCityDrawerOpen(true)} disabled={cityGroups.length === 0}>城市</button>
-          <button className="ico-btn" onClick={() => setShareOpen(true)}>分享</button>
+          <button className="ico-btn" onClick={() => openShareCard('page')}>分享</button>
           <button className="ico-btn all-menu-btn" onClick={() => { setCityDrawerOpen(false); openAllWall(); }}>全站</button>
           <button className="ico-btn on" onClick={() => (user ? logout() : setLoginOpen(true))}>
             {user ? (user.role === 'admin' ? '管理' : '退出') : '登录'}
