@@ -1,44 +1,24 @@
-'use client';
+import { AppProvider } from './store';
+import { Shell } from './shell';
 
-import { AppProvider, useApp } from './store';
-import { BootScreen } from './components/BootScreen';
-import { TourMap } from './components/TourMap';
-import { MessageWall } from './components/MessageWall';
-import { AdminConsole } from './components/AdminConsole';
-import { Composer } from './components/Composer';
-import { LoginModal } from './components/LoginModal';
-import { ShareModal } from './components/ShareModal';
-import { Lightbox, Toast } from './components/Overlays';
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
-function Shell() {
-  const { booted, screen } = useApp();
-  const showPanes = screen !== 'admin';
-
-  return (
-    <div className="crt">
-      {!booted && <BootScreen />}
-
-      {showPanes && (
-        <div className="panes">
-          <TourMap />
-          <MessageWall />
-        </div>
-      )}
-
-      {screen === 'admin' && <AdminConsole />}
-
-      <Composer />
-      <LoginModal />
-      <ShareModal />
-      <Lightbox />
-      <Toast />
-    </div>
-  );
+function paramValue(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-export default function Page() {
+export default async function Page({ searchParams }: { searchParams: SearchParams }) {
+  const params = await searchParams;
+  const all = paramValue(params.all);
   return (
-    <AppProvider>
+    <AppProvider
+      deepLink={{
+        messageId: paramValue(params.m) || undefined,
+        stationId: paramValue(params.station) || undefined,
+        username: paramValue(params.u) || undefined,
+        all: all === '1' || all === 'true',
+      }}
+    >
       <Shell />
     </AppProvider>
   );

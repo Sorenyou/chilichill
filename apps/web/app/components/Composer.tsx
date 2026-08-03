@@ -135,12 +135,13 @@ export function Composer() {
   const canAddImages = images.length < MAX_IMAGES;
   const imageCountText = useMemo(() => `${images.length}/${MAX_IMAGES}`, [images.length]);
 
-  if (!composerOpen && !closing) return null;
-
   useEffect(() => {
     if (composerOpen) setClosing(false);
-    return () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); };
+    const timer = closeTimerRef.current;
+    return () => { if (timer) clearTimeout(timer); };
   }, [composerOpen]);
+
+  if (!composerOpen && !closing) return null;
 
   const clearImages = () => {
     for (const image of images) URL.revokeObjectURL(image.preview);

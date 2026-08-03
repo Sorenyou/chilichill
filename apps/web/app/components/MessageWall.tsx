@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { drawNpc, fmtTime, renderStars } from '@chili/ui';
 import { STATUS_LABEL, type Message, type ReactionType, type Station } from '@chili/shared';
 import { useApp, type WallMode } from '../store';
@@ -9,6 +9,9 @@ import { CityDrawer, useCityGroups, useDesktopLayout } from './CityDrawer';
 interface MessageCardProps {
   message: Message;
   isReply?: boolean;
+  highlight?: boolean;
+  highlightMessageId?: string | null;
+  highlightAuthor?: string | null;
   wallMode: WallMode;
   stationById: Map<string, Station>;
   onLightbox: (url: string) => void;
@@ -17,7 +20,10 @@ interface MessageCardProps {
   onShare?: (message: Message) => void;
 }
 
-const MessageCard = memo(function MessageCard({ message, isReply = false, wallMode, stationById, onLightbox, onReply, onReaction, onShare }: MessageCardProps) {
+const MessageCard = memo(function MessageCard({
+  message, isReply = false, highlight = false, highlightMessageId = null, highlightAuthor = null,
+  wallMode, stationById, onLightbox, onReply, onReaction, onShare,
+}: MessageCardProps) {
   const images = message.images?.length ? message.images : (message.image ? [message.image] : []);
   const thumbs = message.imageThumbs ?? [];
   const station = message.stationId ? stationById.get(message.stationId) : undefined;
@@ -36,7 +42,7 @@ const MessageCard = memo(function MessageCard({ message, isReply = false, wallMo
   );
 
   return (
-    <div className={isReply ? `reply-card ${message.official ? 'official' : ''}` : `card ${message.official ? 'official' : ''}`}>
+    <div className={`${isReply ? 'reply-card' : 'card'} ${message.official ? 'official' : ''} ${highlight ? 'highlight' : ''}`}>
       <div className="card-head">
         <div className={`avatar ${message.official ? 'npc-av' : 'a' + message.avatar}`}>{message.author[0]}</div>
         <div className="who">
@@ -65,6 +71,9 @@ const MessageCard = memo(function MessageCard({ message, isReply = false, wallMo
               key={reply.id}
               message={reply}
               isReply
+              highlight={highlightMessageId === reply.id || (Boolean(highlightAuthor) && reply.author === highlightAuthor)}
+              highlightMessageId={highlightMessageId}
+              highlightAuthor={highlightAuthor}
               wallMode={wallMode}
               stationById={stationById}
               onLightbox={onLightbox}
@@ -82,6 +91,7 @@ export function MessageWall() {
   const {
     stations, curStation, curCityStations, curSwitchStations, messages, sortNew, toggleSort, backToMap, openCityWall,
     wallMode, openAllWall, user, setComposerOpen, setLoginOpen, setLightbox, setShareOpen, openShareCard, showToast, screen, toggleReaction, openReplyComposer, clearReplyTarget,
+    highlightMessageId, highlightAuthor,
     loadMoreMessages, messagesHasMore, messagesLoading, messagesLoadingMore,
   } = useApp();
   const [cityDrawerOpen, setCityDrawerOpen] = useState(false);
@@ -90,6 +100,11 @@ export function MessageWall() {
   const cityGroups = useCityGroups(stations);
   const stationById = useMemo(() => new Map(stations.map((station) => [station.id, station])), [stations]);
   const sorted = useMemo(() => [...messages].sort((a, b) => (sortNew ? b.createdAt - a.createdAt : a.createdAt - b.createdAt)), [messages, sortNew]);
+
+  useEffect(() => {
+    const target = document.querySelector('#wall-view .card.highlight, #wall-view .reply-card.highlight');
+    if (target) target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [messages, highlightMessageId, highlightAuthor]);
 
   const startWrite = () => {
     if (!user) { showToast('请先登录'); setLoginOpen(true); return; }
@@ -169,6 +184,9 @@ export function MessageWall() {
                   <MessageCard
                     key={message.id}
                     message={message}
+                    highlight={highlightMessageId === message.id || (Boolean(highlightAuthor) && message.author === highlightAuthor)}
+                    highlightMessageId={highlightMessageId}
+                    highlightAuthor={highlightAuthor}
                     wallMode={wallMode}
                     stationById={stationById}
                     onLightbox={setLightbox}

@@ -7,6 +7,13 @@ import { listStations, listMessages, listMessagesForStations, listAllPublicMessa
 export type Screen = 'map' | 'wall' | 'admin';
 export type WallMode = 'city' | 'all';
 
+export interface DeepLink {
+  messageId?: string;
+  stationId?: string;
+  username?: string;
+  all?: boolean;
+}
+
 export interface SubmitMessageInput {
   body: string;
   mood: string;
@@ -59,6 +66,9 @@ interface AppContextValue {
   footprintStationIds: string[];
   myStationIds: string[];
   myDiaryCount: number;
+  highlightMessageId: string | null;
+  highlightAuthor: string | null;
+  clearHighlight: () => void;
 
   // modals
   loginOpen: boolean;
@@ -132,7 +142,7 @@ export function useApp(): AppContextValue {
   return ctx;
 }
 
-export function AppProvider({ children }: { children: ReactNode }) {
+export function AppProvider({ children, deepLink }: { children: ReactNode; deepLink?: DeepLink }) {
   const [booted, setBooted] = useState(false);
   const [screen, setScreen] = useState<Screen>('map');
   const [stations, setStations] = useState<Station[]>([]);
@@ -161,6 +171,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [visitorId, setVisitorId] = useState('');
   const [myStationIds, setMyStationIds] = useState<string[]>([]);
   const [myDiaryCount, setMyDiaryCount] = useState(0);
+  const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
+  const [highlightAuthor, setHighlightAuthor] = useState<string | null>(null);
+  const deepLinkHandled = useRef(false);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionPending = useRef<Set<string>>(new Set());
@@ -319,6 +332,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshMyStats(user?.username ?? null);
   }, [user, refreshMyStats]);
 
+  const clearHighlight = useCallback(() => {
+    setHighlightMessageId(null);
+    setHighlightAuthor(null);
+  }, []);
+
+  /* ===== 分享深链：扫码打开后自动定位 ===== */
+  useEffect(() => {
+    if (deepLinkHandled.current || !deepLink) return;
+    // 站点类深链需要 stations 就绪后再定位
+    if ((deepLink.messageId || deepLink.stationId) && stations.length === 0) return;
+    const run = async () => {
+      try {
+        if (deepLink.messageId) {
+          const all = await listAllMessages();
+          const message = all.find((item) => item.id === deepLink.messageId);
+          if (message?.stationId) {
+            const station = stations.find((item) => item.id === message.stationId);
+            if (station) openWall(station);
+            else await openAllWall();
+          } else {
+            await openAllWall();
+          }
+          setHighlightMessageId(deepLink.messageId);
+        } else if (deepLink.stationId) {
+          const station = stations.find((item) => item.id === deepLink.stationId);
+          if (station) openWall(station);
+          else await openAllWall();
+        } else if (deepLink.username) {
+          await openAllWall();
+          setHighlightAuthor(deepLink.username);
+        } else if (deepLink.all) {
+          await openAllWall();
+        }
+      } finally {
+        deepLinkHandled.current = true;
+      }
+    };
+    run();
+  }, [deepLink, stations, openWall, openAllWall]);
+
   const submitMessage = useCallback(async (input: SubmitMessageInput) => {
     if (!user) throw new Error('请先登录');
     const pickedStation = stations.find((station) => station.name === input.cityTag || station.cityName === input.cityTag);
@@ -410,6 +463,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     messages, refreshMessages, loadMoreMessages, messagesHasMore, messagesLoading, messagesLoadingMore, toggleReaction, sortNew, toggleSort,
     user, login, logout,
     toast, showToast, submitMessage, replyTarget, openReplyComposer, openAdmin, footprintStationIds, myStationIds, myDiaryCount,
+    highlightMessageId, highlightAuthor, clearHighlight,
     shareMode, shareTargetMessage, openShareCard: (mode: 'page' | 'footprint' | 'message', message?: Message | null) => {
       setShareMode(mode);
       setShareTargetMessage(mode === 'message' ? (message ?? null) : null);

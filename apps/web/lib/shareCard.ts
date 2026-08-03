@@ -15,6 +15,7 @@ export interface ShareCardStation {
 
 export interface ShareCardData {
   mode: ShareCardMode;
+  qrUrl?: string;
   message?: {
     author: string;
     avatar: number;
@@ -35,8 +36,8 @@ export interface ShareCardData {
   stations?: ShareCardStation[];
 }
 
-const CARD_W = 1080;
-const CARD_H = 1440;
+export const CARD_W = 1080;
+export const CARD_H = 1440;
 
 const INK = '#f6eeda';
 const DIM = '#b9aed4';
@@ -58,7 +59,7 @@ const EMOJI_FAMILIES = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji
 const SYMBOL_FONT = '"Segoe UI Symbol", "Apple Symbols", "Noto Sans Symbols", "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 
 /* ===== 按字符回退的文本绘制（emoji / 符号用系统字体） ===== */
-function isEmojiLike(ch: string): boolean {
+export function isEmojiLike(ch: string): boolean {
   const cp = ch.codePointAt(0) ?? 0;
   return cp === 0xfe0f
     || (cp >= 0x1f000 && cp <= 0x1faff)
@@ -66,7 +67,7 @@ function isEmojiLike(ch: string): boolean {
     || (cp >= 0x2b00 && cp <= 0x2bff);
 }
 
-function splitTextRuns(text: string): Array<{ text: string; emoji: boolean }> {
+export function splitTextRuns(text: string): Array<{ text: string; emoji: boolean }> {
   const runs: Array<{ text: string; emoji: boolean }> = [];
   for (const ch of text) {
     const emoji = isEmojiLike(ch);
@@ -85,7 +86,7 @@ function emojiFontFor(baseFont: string): string {
   return `${sizeMatch ? sizeMatch[1] : '28px'} ${EMOJI_FAMILIES}`;
 }
 
-function measureTextRuns(ctx: CanvasRenderingContext2D, runs: Array<{ text: string; emoji: boolean }>, baseFont: string): number {
+export function measureTextRuns(ctx: CanvasRenderingContext2D, runs: Array<{ text: string; emoji: boolean }>, baseFont: string): number {
   let width = 0;
   for (const run of runs) {
     ctx.font = run.emoji ? emojiFontFor(baseFont) : baseFont;
@@ -94,7 +95,7 @@ function measureTextRuns(ctx: CanvasRenderingContext2D, runs: Array<{ text: stri
   return width;
 }
 
-function drawTextRuns(ctx: CanvasRenderingContext2D, runs: Array<{ text: string; emoji: boolean }>, x: number, y: number, baseFont: string) {
+export function drawTextRuns(ctx: CanvasRenderingContext2D, runs: Array<{ text: string; emoji: boolean }>, x: number, y: number, baseFont: string) {
   let cursor = x;
   for (const run of runs) {
     ctx.font = run.emoji ? emojiFontFor(baseFont) : baseFont;
@@ -149,41 +150,54 @@ function drawQR(ctx: CanvasRenderingContext2D, x: number, y: number, size: numbe
   ctx.strokeRect(x, y, size, size);
 }
 
-/* ===== 文字自动换行 ===== */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lineH: number, maxLines: number) {
+/* ===== 文字自动换行（超长时最后一行以省略号收尾） ===== */
+export function fitTextWithEllipsis(ctx: CanvasRenderingContext2D, text: string, maxW: number): { text: string; ellipsis: boolean } {
+  const ellipsis = '…';
+  const ellipsisWidth = ctx.measureText(ellipsis).width;
+  let fit = '';
+  for (const c of [...text]) {
+    const next = fit + c;
+    if (ctx.measureText(next).width + ellipsisWidth > maxW) break;
+    fit = next;
+  }
+  if (fit === text) return { text, ellipsis: false };
+  return { text: fit, ellipsis: true };
+}
+
+/**
+ * 换行绘制正文，最多 maxLines 行；返回实际绘制行数。
+ * 若文字被截断，最后一行末尾绘制金色省略号。
+ */
+export function wrapBodyText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number, lineH: number, maxLines: number): number {
   const chars = [...text];
   let line = '';
   let lines = 0;
   for (const c of chars) {
     const next = line + c;
     if (ctx.measureText(next).width > maxW && line) {
+      if (lines === maxLines - 1) {
+        // 最后一行：放不下更多内容时截断并加省略号
+        const fitted = fitTextWithEllipsis(ctx, line, maxW);
+        ctx.fillText(fitted.text, x, y + lines * lineH);
+        if (fitted.ellipsis) {
+          ctx.fillStyle = GOLD;
+          ctx.fillText('…', x + ctx.measureText(fitted.text).width, y + lines * lineH);
+          ctx.fillStyle = INK;
+        }
+        return lines + 1;
+      }
       ctx.fillText(line, x, y + lines * lineH);
       line = c;
       lines++;
-      if (lines >= maxLines) return;
     } else {
       line = next;
     }
   }
-  if (line && lines < maxLines) ctx.fillText(line, x, y + lines * lineH);
-}
-
-function measureWrapLines(ctx: CanvasRenderingContext2D, text: string, maxW: number, lineH: number, maxLines: number): number {
-  const chars = [...text];
-  let line = '';
-  let lines = 0;
-  for (const c of chars) {
-    const next = line + c;
-    if (ctx.measureText(next).width > maxW && line) {
-      line = c;
-      lines++;
-      if (lines >= maxLines) return maxLines;
-    } else {
-      line = next;
-    }
+  if (line && lines < maxLines) {
+    ctx.fillText(line, x, y + lines * lineH);
+    lines++;
   }
-  if (line && lines < maxLines) lines++;
-  return Math.max(1, lines);
+  return lines;
 }
 
 /* ===== 背景：舞台光晕 + 星点 + 暗角 ===== */
@@ -419,11 +433,11 @@ function renderMessageCard(ctx: CanvasRenderingContext2D, data: NonNullable<Shar
   const bodyX = 104;
   const bodyW = CARD_W - 208;
   const bodyTop = 460;
-  const maxBodyLines = 9;
+  const bodyBottomLimit = 1000; // 正文区域下界，避免压到照片/互动贴片
+  const maxBodyLines = Math.max(3, Math.floor((bodyBottomLimit - bodyTop) / bodyLineH));
   ctx.font = `400 ${bodyFont}px "ZCOOL KuaiLe", sans-serif`;
   ctx.fillStyle = INK;
-  const bodyLines = measureWrapLines(ctx, data.body, bodyW, bodyLineH, maxBodyLines);
-  wrapText(ctx, data.body, bodyX, bodyTop, bodyW, bodyLineH, maxBodyLines);
+  const bodyLines = wrapBodyText(ctx, data.body, bodyX, bodyTop, bodyW, bodyLineH, maxBodyLines);
 
   // 照片 / 互动贴片
   const chipsY = bodyTop + bodyLines * bodyLineH + 16;
@@ -502,7 +516,7 @@ function renderStatCard(ctx: CanvasRenderingContext2D, data: ShareCardData) {
 }
 
 /* ===== 票根分隔 + 二维码区 + 页脚 ===== */
-function renderFooter(ctx: CanvasRenderingContext2D) {
+function renderFooter(ctx: CanvasRenderingContext2D, data: ShareCardData) {
   drawDivider(ctx, 1086, 0.22);
 
   // 白色二维码票块
@@ -512,7 +526,7 @@ function renderFooter(ctx: CanvasRenderingContext2D) {
   roundRectPath(ctx, qrX, qrY, qrSize, qrSize, 18);
   ctx.fillStyle = '#f7f2e9';
   ctx.fill();
-  drawQR(ctx, qrX + 12, qrY + 12, qrSize - 24, 'https://www.707o.cc');
+  drawQR(ctx, qrX + 12, qrY + 12, qrSize - 24, data.qrUrl ?? 'https://www.707o.cc');
 
   ctx.font = '400 34px "ZCOOL KuaiLe", sans-serif';
   ctx.fillStyle = GOLD;
@@ -543,5 +557,5 @@ export function renderShareCard(ctx: CanvasRenderingContext2D, data: ShareCardDa
     renderStatCard(ctx, data);
   }
 
-  renderFooter(ctx);
+  renderFooter(ctx, data);
 }
