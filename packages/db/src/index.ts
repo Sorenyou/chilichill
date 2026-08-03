@@ -89,6 +89,16 @@ export async function listMessagesByAuthor(author: string) {
   return (await mock.listAllMessages()).filter((message) => message.status === 'published' && message.author === author);
 }
 
+/** 按 ID 批量查询已发布留言（用于作者视图补全回复上下文） */
+export async function listMessagesByIds(ids: string[]) {
+  const uniqueIds = [...new Set(ids.filter(Boolean))].slice(0, 50);
+  if (!uniqueIds.length) return [];
+  const result = await api<{ items: Message[] }>(`/api/messages?ids=${encodeURIComponent(uniqueIds.join(','))}`);
+  if (result) return result.items;
+  const idSet = new Set(uniqueIds);
+  return (await mock.listAllMessages()).filter((message) => idSet.has(message.id) && message.status === 'published');
+}
+
 export async function listUsers() {
   return mock.listUsers();
 }

@@ -75,6 +75,31 @@ export async function GET(request: Request) {
     }
     return Response.json({ items: rows.map((row) => mapMessage(row, reactions.get(row.id))) });
   }
+  const idsParam = url.searchParams.get('ids');
+  if (idsParam) {
+    const ids = idsParam.split(',').filter(Boolean).slice(0, 50);
+    if (ids.length) {
+      const supabase = adminClient();
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*, message_images(url, thumb_url, sort_order)')
+        .eq('status', 'published')
+        .in('id', ids)
+        .order('created_at', { ascending: false });
+      if (error) return Response.json({ error: error.message }, { status: 500 });
+      const rows = data ?? [];
+      let reactions: Awaited<ReturnType<typeof reactionSummaries>> = new Map();
+      try {
+        reactions = await reactionSummaries(supabase, rows.map((row) => row.id), visitorId);
+      } catch (reactionError) {
+        if (!isMissingReactionTable(reactionError)) {
+          return Response.json({ error: reactionError instanceof Error ? reactionError.message : 'Failed to load reactions' }, { status: 500 });
+        }
+      }
+      return Response.json({ items: rows.map((row) => mapMessage(row, reactions.get(row.id))) });
+    }
+    return Response.json({ items: [] });
+  }
   const stationIds = url.searchParams.get('stationIds')?.split(',').filter(Boolean) ?? [];
   const stationId = url.searchParams.get('stationId');
   const all = url.searchParams.get('all') === '1';

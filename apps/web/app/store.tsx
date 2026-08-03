@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Message, ReactionType, Station, User } from '@chili/shared';
-import { listStations, listMessages, listMessagesForStations, listAllPublicMessages, createMessage, listAllMessages, listMessageById, listMessagesByAuthor, listUsers, toggleMessageReaction } from '@chili/db';
+import { listStations, listMessages, listMessagesForStations, listAllPublicMessages, createMessage, listAllMessages, listMessageById, listMessagesByAuthor, listMessagesByIds, listUsers, toggleMessageReaction } from '@chili/db';
 
 export type Screen = 'map' | 'wall' | 'admin';
 export type WallMode = 'city' | 'all';
@@ -42,6 +42,8 @@ interface AppContextValue {
   wallMode: WallMode;
   openAllWall: () => Promise<void>;
   clearReplyTarget: () => void;
+  authorView: string | null;
+  openAuthorView: (username: string) => Promise<void>;
 
   messages: Message[];
   refreshMessages: () => Promise<void>;
@@ -155,6 +157,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [messagesLoadingMore, setMessagesLoadingMore] = useState(false);
   const [wallMode, setWallMode] = useState<WallMode>('city');
+  const [authorView, setAuthorView] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [sortNew, setSortNew] = useState(true);
   const [toast, setToast] = useState('');
@@ -254,9 +257,10 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
   useEffect(() => { refreshStations(); }, [refreshStations]);
 
   // load messages when entering a wall
-  useEffect(() => { if (curStation || wallMode === 'all') refreshMessages(); }, [curStation, wallMode, sortNew, refreshMessages]);
+  useEffect(() => { if (authorView) return; if (curStation || wallMode === 'all') refreshMessages(); }, [curStation, wallMode, sortNew, authorView, refreshMessages]);
 
   const openWall = useCallback((s: Station) => {
+    setAuthorView(null);
     setWallMode('city');
     setCurStation(s);
     setCurCityStations([s]);
@@ -265,6 +269,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
   }, []);
 
   const openCityWall = useCallback((s: Station, cityStations: Station[], switchStations?: Station[]) => {
+    setAuthorView(null);
     setWallMode('city');
     const uniqueCities = new Map(cityStations.map((station) => [station.cityName, station]));
     setCurStation(s);
@@ -273,9 +278,10 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
     setScreen('wall');
   }, []);
 
-  const backToMap = useCallback(() => setScreen('map'), []);
+  const backToMap = useCallback(() => { setAuthorView(null); setScreen('map'); }, []);
 
   const openAllWall = useCallback(async () => {
+    setAuthorView(null);
     setWallMode('all');
     setCurStation(null);
     setCurCityStations([]);
@@ -333,6 +339,46 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
     }
   }, []);
 
+  /* ===== 作者足迹视图：按昵称展示 TA 的全部留言（回复挂在原留言下） ===== */
+  const openAuthorView = useCallback(async (username: string) => {
+    setAuthorView(username);
+    setWallMode('all');
+    setCurStation(null);
+    setCurCityStations([]);
+    setCurSwitchStations([]);
+    setScreen('wall');
+    setMessagesLoading(true);
+    try {
+      const authored = await listMessagesByAuthor(username);
+      const parentIds = [...new Set(authored.map((message) => message.parentId).filter((id): id is string => Boolean(id)))];
+      const parents = parentIds.length ? await listMessagesByIds(parentIds) : [];
+      const parentById = new Map(parents.map((message) => [message.id, message]));
+      const rootMap = new Map<string, Message>();
+      for (const message of authored) {
+        if (message.parentId) {
+          const parent = authored.find((item) => item.id === message.parentId) ?? parentById.get(message.parentId);
+          if (parent) {
+            const existing = rootMap.get(parent.id);
+            if (existing) {
+              existing.replies = [...(existing.replies ?? []), message];
+            } else {
+              rootMap.set(parent.id, { ...parent, replies: [message] });
+            }
+          }
+        } else {
+          const existing = rootMap.get(message.id);
+          rootMap.set(message.id, existing ?? { ...message, replies: [] });
+        }
+      }
+      const list = [...rootMap.values()].sort((a, b) => b.createdAt - a.createdAt);
+      setMessages(list);
+      setMessagesNextOffset(null);
+      setMessagesHasMore(false);
+    } finally {
+      setMessagesLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     refreshMyStats(user?.username ?? null);
   }, [user, refreshMyStats]);
@@ -387,14 +433,13 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
           if (station) openWall(station);
           else await openAllWall();
         } else if (deepLink.username) {
-          await openAllWall();
-          setHighlightAuthor(deepLink.username);
           try {
+            await openAuthorView(deepLink.username);
+            setHighlightAuthor(deepLink.username);
             const authored = await listMessagesByAuthor(deepLink.username);
             if (authored.length) {
               const cities = [...new Set(authored.map((message) => message.cityTag).filter(Boolean))].slice(0, 5).join(' / ');
               showToast(`找到了 ${deepLink.username} 的足迹${cities ? `：${cities}` : ''}`);
-              await ensureLoaded(new Set(authored.map((message) => message.id)));
             } else {
               showToast(`还没有找到 ${deepLink.username} 的足迹`);
             }
@@ -409,7 +454,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
       }
     };
     run();
-  }, [deepLink, stations, openWall, openAllWall, showToast, loadMoreMessages]);
+  }, [deepLink, stations, openWall, openAllWall, openAuthorView, showToast, loadMoreMessages]);
 
   const submitMessage = useCallback(async (input: SubmitMessageInput) => {
     if (!user) throw new Error('请先登录');
@@ -498,7 +543,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
   const value: AppContextValue = {
     booted, screen, setScreen,
     stations, refreshStations,
-    curStation, curCityStations, curSwitchStations, openWall, openCityWall, backToMap, wallMode, openAllWall, clearReplyTarget,
+    curStation, curCityStations, curSwitchStations, openWall, openCityWall, backToMap, wallMode, openAllWall, clearReplyTarget, authorView, openAuthorView,
     messages, refreshMessages, loadMoreMessages, messagesHasMore, messagesLoading, messagesLoadingMore, toggleReaction, sortNew, toggleSort,
     user, login, logout,
     toast, showToast, submitMessage, replyTarget, openReplyComposer, openAdmin, footprintStationIds, myStationIds, myDiaryCount,

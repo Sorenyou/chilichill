@@ -91,7 +91,7 @@ export function MessageWall() {
   const {
     stations, curStation, curCityStations, curSwitchStations, messages, sortNew, toggleSort, backToMap, openCityWall,
     wallMode, openAllWall, user, setComposerOpen, setLoginOpen, setLightbox, setShareOpen, openShareCard, showToast, screen, toggleReaction, openReplyComposer, clearReplyTarget,
-    highlightMessageId, highlightAuthor,
+    highlightMessageId, highlightAuthor, authorView,
     loadMoreMessages, messagesHasMore, messagesLoading, messagesLoadingMore,
   } = useApp();
   const [cityDrawerOpen, setCityDrawerOpen] = useState(false);
@@ -121,7 +121,7 @@ export function MessageWall() {
     <div className={`screen ${active ? 'active' : ''}`} id="wall-view">
       <div className="topbar">
         <button className="ico-btn back-btn" onClick={() => { setCityDrawerOpen(false); backToMap(); }}>&lt; 地图</button>
-        <div className="wordmark">{wallMode === 'all' ? '全站' : curStation ? curStation.code : '选择城市'}</div>
+        <div className="wordmark">{authorView ?? (wallMode === 'all' ? '全站' : curStation ? curStation.code : '选择城市')}</div>
         <div className="wall-actions">
           <button className="ico-btn city-menu-btn" onClick={() => setCityDrawerOpen(true)} disabled={cityGroups.length === 0}>城市</button>
           <button className="ico-btn" onClick={() => openShareCard('page')}>分享</button>
@@ -151,9 +151,9 @@ export function MessageWall() {
         ) : (
           <>
             <div className="station-head">
-              <div className="city">{wallMode === 'all' ? '全站' : curStation?.cityName}</div>
-              <div className="date">{wallMode === 'all' ? '全部巡演留言' : curStation?.date}</div>
-              <div className="venue">{wallMode === 'all' ? '全部场次 / 全部城市' : curStation?.venue}</div>
+              <div className="city">{authorView ?? (wallMode === 'all' ? '全站' : curStation?.cityName)}</div>
+              <div className="date">{authorView ? 'TA 的全部留言' : (wallMode === 'all' ? '全部巡演留言' : curStation?.date)}</div>
+              <div className="venue">{authorView ? '足迹' : (wallMode === 'all' ? '全部场次 / 全部城市' : curStation?.venue)}</div>
               {wallMode !== 'all' && curCityStations.length > 1 && (
                 <div className="station-list">
                   {curCityStations.map((station) => <span key={station.id}>{station.date} / {station.venue}</span>)}
@@ -168,7 +168,7 @@ export function MessageWall() {
                   ))}
                 </div>
               )}
-              <div className="count">{messages.filter((m) => !m.official).length} 篇日记</div>
+              <div className="count">{authorView ? `${messages.length} 篇留言` : `${messages.filter((m) => !m.official).length} 篇日记`}</div>
               {wallMode !== 'all' && curStation && <div className={`badge-status ${curStation.status}`}>{STATUS_LABEL[curStation.status]}</div>}
             </div>
             {messagesLoading && sorted.length === 0 ? (
