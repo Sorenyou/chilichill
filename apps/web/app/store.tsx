@@ -174,6 +174,8 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
   const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
   const [highlightAuthor, setHighlightAuthor] = useState<string | null>(null);
   const deepLinkHandled = useRef(false);
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactionPending = useRef<Set<string>>(new Set());
@@ -340,8 +342,26 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
     if (deepLinkHandled.current || !deepLink) return;
     // 站点类深链需要 stations 就绪后再定位
     if ((deepLink.messageId || deepLink.stationId) && stations.length === 0) return;
+    deepLinkHandled.current = true;
     const run = async () => {
       try {
+        // 目标可能不在第一页：逐页加载直到出现（最多 20 页）
+        const ensureLoaded = async (targetIds: Set<string>) => {
+          let guard = 0;
+          while (guard < 20) {
+            if ([...targetIds].every((id) => findMessageById(messagesRef.current, id))) return;
+            const before = messagesRef.current.length;
+            await loadMoreMessages();
+            const start = Date.now();
+            while (Date.now() - start < 5000) {
+              if (messagesRef.current.length !== before) break;
+              await new Promise((resolve) => setTimeout(resolve, 80));
+            }
+            if (messagesRef.current.length === before) return; // 没有更多页
+            guard++;
+          }
+        };
+
         if (deepLink.messageId) {
           try {
             const info = await listMessageById(deepLink.messageId);
@@ -350,6 +370,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
               : undefined;
             if (station) openWall(station);
             else await openAllWall();
+            if (info) await ensureLoaded(new Set([info.id]));
           } catch {
             await openAllWall();
           }
@@ -366,6 +387,7 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
             if (authored.length) {
               const cities = [...new Set(authored.map((message) => message.cityTag).filter(Boolean))].slice(0, 5).join(' / ');
               showToast(`找到了 ${deepLink.username} 的足迹${cities ? `：${cities}` : ''}`);
+              await ensureLoaded(new Set(authored.map((message) => message.id)));
             } else {
               showToast(`还没有找到 ${deepLink.username} 的足迹`);
             }
@@ -375,12 +397,12 @@ export function AppProvider({ children, deepLink }: { children: ReactNode; deepL
         } else if (deepLink.all) {
           await openAllWall();
         }
-      } finally {
-        deepLinkHandled.current = true;
+      } catch {
+        /* ignore */
       }
     };
     run();
-  }, [deepLink, stations, openWall, openAllWall, showToast]);
+  }, [deepLink, stations, openWall, openAllWall, showToast, loadMoreMessages]);
 
   const submitMessage = useCallback(async (input: SubmitMessageInput) => {
     if (!user) throw new Error('请先登录');
