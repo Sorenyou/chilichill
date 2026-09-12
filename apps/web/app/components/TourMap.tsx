@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PALETTES, type Station, type StationStatus } from '@chili/shared';
 import { useApp } from '../store';
-import { CityDrawer, useCityGroups, useDesktopLayout, cityGroupKey } from './CityDrawer';
+import { CityDrawer, useCityGroups, useDesktopLayout } from './CityDrawer';
 
 const BOARD_W = 72;
 const BOARD_H = 68;
@@ -201,14 +201,6 @@ export function TourMap() {
       .map((station) => [station]);
   }, [stations]);
 
-  const duplicatedCityKeys = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const station of stations) {
-      const key = cityGroupKey(station);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
-  }, [stations]);
 
   return (
     <div className={`screen ${active ? 'active' : ''}`} id="map-view">
@@ -322,8 +314,7 @@ export function TourMap() {
                 const center = spreadOffsets[station.id] || baseCenter;
                 const color = PALETTES[station.palette];
                 const isCurrent = curStation?.id === station.id;
-                const isMultiCity = duplicatedCityKeys.has(cityGroupKey(station));
-                const label = isMultiCity ? station.name : station.cityName;
+                const label = station.cityName;
                 const markerClasses = ['block-marker', isCurrent ? 'current' : ''].filter(Boolean).join(' ');
                 return (
                   <g key={station.id} className={markerClasses} onClick={() => openCityWall(station, group)}>

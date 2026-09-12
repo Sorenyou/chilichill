@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { STATUS_LABEL, type Station } from '@chili/shared';
 import { cityGroupKey } from '@/lib/cityGroups';
 
-export { cityGroupKey } from '@/lib/cityGroups';
-
 export function useCityGroups(stations: Station[]) {
   return useMemo(() => {
     const groups = new Map<string, Station[]>();
@@ -44,15 +42,6 @@ export function CityDrawer({ open, cityGroups, currentStation, onClose, onSelect
     cityGroups.flat().sort((a, b) => a.date.localeCompare(b.date) || a.cityName.localeCompare(b.cityName))
   ), [cityGroups]);
 
-  const duplicatedCityKeys = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const station of stations) {
-      const key = cityGroupKey(station);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
-  }, [stations]);
-
   return (
     <div className={`city-drawer-layer ${open ? 'open' : ''}`} aria-hidden={!open}>
       <button className="city-drawer-shade" type="button" aria-label="关闭城市菜单" onClick={onClose} />
@@ -63,7 +52,7 @@ export function CityDrawer({ open, cityGroups, currentStation, onClose, onSelect
         </div>
         <div className="city-drawer-list">
           {stations.map((station) => {
-            const label = duplicatedCityKeys.has(cityGroupKey(station)) ? station.name : station.cityName;
+            const label = station.cityName;
             return (
               <button
                 key={station.id}
