@@ -40,7 +40,18 @@ interface CityDrawerProps {
 }
 
 export function CityDrawer({ open, cityGroups, currentStation, onClose, onSelect }: CityDrawerProps) {
-  const currentCityKey = currentStation ? cityGroupKey(currentStation) : '';
+  const stations = useMemo(() => (
+    cityGroups.flat().sort((a, b) => a.date.localeCompare(b.date) || a.cityName.localeCompare(b.cityName))
+  ), [cityGroups]);
+
+  const duplicatedCityKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const station of stations) {
+      const key = cityGroupKey(station);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
+  }, [stations]);
 
   return (
     <div className={`city-drawer-layer ${open ? 'open' : ''}`} aria-hidden={!open}>
@@ -51,18 +62,17 @@ export function CityDrawer({ open, cityGroups, currentStation, onClose, onSelect
           <button className="ico-btn mini" type="button" aria-label="关闭" onClick={onClose}>X</button>
         </div>
         <div className="city-drawer-list">
-          {cityGroups.map((group) => {
-            const station = group[0];
-            const key = cityGroupKey(station);
+          {stations.map((station) => {
+            const label = duplicatedCityKeys.has(cityGroupKey(station)) ? station.name : station.cityName;
             return (
               <button
-                key={key}
+                key={station.id}
                 type="button"
-                className={`city-drawer-item ${key === currentCityKey ? 'on' : ''}`}
-                onClick={() => onSelect(station, group)}
+                className={`city-drawer-item ${station.id === currentStation?.id ? 'on' : ''}`}
+                onClick={() => onSelect(station, [station])}
               >
-                <span className="city-drawer-city">{station.cityName}</span>
-                <span className="city-drawer-meta">{group.length > 1 ? `${group.length} 场` : station.date}</span>
+                <span className="city-drawer-city">{label}</span>
+                <span className="city-drawer-meta">{station.date}</span>
                 <span className={`city-drawer-status ${station.status}`}>{STATUS_LABEL[station.status]}</span>
               </button>
             );

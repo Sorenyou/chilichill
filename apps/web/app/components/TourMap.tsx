@@ -194,13 +194,21 @@ export function TourMap() {
     return centers;
   }, [features, stations]);
 
-  const desktopCityGroups = useMemo(() => {
-    // 每个城市独立成点（同城多场仍合并），不再按地图坐标二次合并，
-    // 避免同省不同城市（如广州/深圳）被叠成一个带切换的城市点。
-    return cityGroups.map((group) => [...group].sort((a, b) => b.date.localeCompare(a.date)));
-  }, [cityGroups]);
+  const visibleCityGroups = useMemo(() => {
+    // 每个站点独立成点（同城多场也分开标注，由 spread 逻辑错开），按日期排序连线。
+    return [...stations]
+      .sort((a, b) => a.date.localeCompare(b.date) || a.cityName.localeCompare(b.cityName))
+      .map((station) => [station]);
+  }, [stations]);
 
-  const visibleCityGroups = desktopMap ? desktopCityGroups : cityGroups;
+  const duplicatedCityKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const station of stations) {
+      const key = cityGroupKey(station);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key));
+  }, [stations]);
 
   return (
     <div className={`screen ${active ? 'active' : ''}`} id="map-view">
@@ -308,22 +316,22 @@ export function TourMap() {
                 }
                 if (!moved) break;
               }
-              return visibleCityGroups.map((group, index) => {
+              return visibleCityGroups.map((group) => {
                 const station = group[0];
                 const baseCenter = markerPosition(station, provinceCenters);
                 const center = spreadOffsets[station.id] || baseCenter;
                 const color = PALETTES[station.palette];
-                const isCurrent = curStation && cityGroupKey(curStation) === cityGroupKey(station);
-                const hasMulti = group.length > 1;
+                const isCurrent = curStation?.id === station.id;
+                const isMultiCity = duplicatedCityKeys.has(cityGroupKey(station));
+                const label = isMultiCity ? station.name : station.cityName;
                 const markerClasses = ['block-marker', isCurrent ? 'current' : ''].filter(Boolean).join(' ');
                 return (
-                  <g key={station.provinceAdcode + '-' + station.cityName + '-' + index} className={markerClasses} onClick={() => openCityWall(station, group)}>
+                  <g key={station.id} className={markerClasses} onClick={() => openCityWall(station, group)}>
                     {isCurrent && <circle className="marker-glow" cx={center.x} cy={center.y} r="2.5" style={{ fill: 'none', stroke: color, strokeWidth: '0.4', strokeDasharray: '0.6 0.4' }} />}
                     <circle className="marker-hit" cx={center.x} cy={center.y} r={desktopMap ? '2.2' : '4.2'} />
-                    <circle className="marker-dot" cx={center.x} cy={center.y} r={hasMulti ? '1.35' : '1.08'} style={{ fill: color }} />
-                    {hasMulti && <text x={center.x} y={center.y} className="marker-badge" textAnchor="middle" dominantBaseline="central">{group.length}</text>}
-                    {desktopMap && <text x={center.x} y={center.y - 2.2} className="marker-label" textAnchor="middle">{station.cityName}</text>}
-                    <title>{station.cityName}{hasMulti ? ' (' + group.length + '场)' : ''} - {station.date}</title>
+                    <circle className="marker-dot" cx={center.x} cy={center.y} r="1.08" style={{ fill: color }} />
+                    {desktopMap && <text x={center.x} y={center.y - 2.2} className="marker-label" textAnchor="middle">{label}</text>}
+                    <title>{label} - {station.date}</title>
                   </g>
                 );
               });

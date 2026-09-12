@@ -11,6 +11,9 @@ export const SEED_STATIONS: Station[] = [
   { id: 's6', code: 'SZ', name: '深圳', cityName: '深圳', provinceName: '广东省', provinceAdcode: 440000, venue: '方街', date: '2026-08-02', x: 57.9, y: 79.7, status: 'upcoming', palette: 'warn' },
   { id: 's4', code: 'CD', name: '成都', cityName: '成都', provinceName: '四川省', provinceAdcode: 510000, venue: '凤凰山体育馆', date: '2026-07-05', x: 38.9, y: 59.4, status: 'upcoming', palette: 'violet' },
   { id: 's5', code: 'WH', name: '武汉', cityName: '武汉', provinceName: '湖北省', provinceAdcode: 420000, venue: '五环体育中心', date: '2026-07-19', x: 60.4, y: 61.6, status: 'upcoming', palette: 'green' },
+  { id: 's7', code: 'QHD', name: '秦皇岛·虾米音乐节', cityName: '秦皇岛', provinceName: '河北省', provinceAdcode: 130000, venue: '阿那亚·虾米音乐节', date: '2026-08-29', x: 66.6, y: 43.7, status: 'done', palette: 'green' },
+  { id: 's8', code: 'GZ', name: '广州·超级草莓音乐节', cityName: '广州', provinceName: '广东省', provinceAdcode: 440000, venue: '广州超级草莓音乐节', date: '2026-09-25', x: 57.9, y: 79.7, status: 'upcoming', palette: 'violet' },
+  { id: 's9', code: 'SH', name: '上海·Red Land', cityName: '上海', provinceName: '上海市', provinceAdcode: 310000, venue: 'Red Land2026', date: '2026-10-06', x: 78.6, y: 53.8, status: 'upcoming', palette: 'cool' },
 ];
 
 const now = Date.now();
